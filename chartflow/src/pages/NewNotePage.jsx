@@ -1,132 +1,122 @@
 import { useEffect, useState } from 'react';
 import supabase from '../lib/supabase'
 
-// Simple patient selector for now
-function PatientSelector({ selectedPatient, onSelect }) {
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // get patients from supabase
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('patients')
-          .select('*')
-          .order('last_name');
-        if (error) throw error;
-        setPatients(data);
-      } catch (error) {
-        console.error('Error fetching patients:', error);
-        alert('Failed to load patients');
-      } finally {
-        setLoading(false);
-      }
+function CustomDateSelector({ value, onChange }) {
+  // Parse the ISO date string (YYYY-MM-DD) or get today's date
+  const parseDate = () => {
+    if (value) {
+      const parts = value.split('-');
+      return {
+        year: parseInt(parts[0]),
+        month: parseInt(parts[1]),
+        day: parseInt(parts[2])
+      };
+    }
+    const today = new Date();
+    return {
+      year: today.getFullYear(),
+      month: today.getMonth() + 1,
+      day: today.getDate()
     };
+  };
 
-    fetchPatients();
+  const { year: initialYear, month: initialMonth, day: initialDay } = parseDate();
+  const [month, setMonth] = useState(initialMonth);
+  const [day, setDay] = useState(initialDay);
+  const [year, setYear] = useState(initialYear);
+
+  // Sync initial date to parent on mount
+  useEffect(() => {
+    const dateString = `${initialYear}-${String(initialMonth).padStart(2, '0')}-${String(initialDay).padStart(2, '0')}`;
+    onChange(dateString);
   }, []);
 
+  const updateDate = (newMonth, newDay, newYear) => {
+    setMonth(newMonth);
+    setDay(newDay);
+    setYear(newYear);
+    // Format as YYYY-MM-DD for PostgreSQL date type
+    const dateString = `${newYear}-${String(newMonth).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+    onChange(dateString);
+  };
+
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
+
   return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Select Patient
-      </label>
-      <select 
-        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        value={selectedPatient?.id || ''}
-        onChange={(e) => {
-          const patient = patients.find(p => p.id == e.target.value);
-          onSelect(patient);
-        }}
-        disabled={loading}
-      >
-        <option value="">{loading ? 'Loading patients...' : 'Choose a patient...'}</option>
-        {patients.map(patient => (
-          <option key={patient.id} value={patient.id}>
-            {patient.first_name} {patient.last_name} - DOB: {patient.date_of_birth}
-          </option>
-        ))}
-      </select>
+    <div className="p-6 max-w-md mx-auto">
+      <div className="flex gap-3">
+        <select 
+          value={month} 
+          onChange={(e) => updateDate(parseInt(e.target.value), day, year)}
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Month</option>
+          {months.map((m, i) => (
+            <option key={i} value={i + 1}>{m}</option>
+          ))}
+        </select>
+
+        <select 
+          value={day} 
+          onChange={(e) => updateDate(month, parseInt(e.target.value), year)}
+          className="w-20 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Day</option>
+          {days.map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+
+        <select 
+          value={year} 
+          onChange={(e) => updateDate(month, day, parseInt(e.target.value))}
+          className="w-24 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Year</option>
+          {years.map(y => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+
+      {month && day && year && (
+        <p className="mt-4 text-gray-700 font-medium">
+          Selected: {months[month - 1]} {day}, {year}
+        </p>
+      )}
     </div>
   );
 }
 
-function AppointmentSelector({ selectedAppointment, selectedPatient, onSelect }) {
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  // fetch appointments by patient
-  useEffect(() => {
-    if (!selectedPatient) {
-      setAppointments([]);
-      setLoading(false);
-      return;
-    }
-
-    const fetchAppointments = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('patient_id', selectedPatient.id)
-          .order('appointment_date');
-        if (error) throw error;
-        setAppointments(data);
-      } catch (error) {
-        console.error('Error fetching appointments:', error);
-        alert('Failed to load appointments');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAppointments();
-  }, [selectedPatient]);
-
-  return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Select Appointment
-      </label>
-      <select 
-        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        value={selectedAppointment?.id || ''}
-        onChange={(e) => {
-          const appointment = appointments.find(p => p.id == e.target.value);
-          onSelect(appointment);
-        }}
-        disabled={loading || !selectedPatient}
-      >
-        <option value="">{loading ? 'Loading appointments...' : 'Choose an appointment...'}</option>
-        {appointments.map(appointment => (
-          <option key={appointment.id} value={appointment.id}>
-            {appointment.appointment_date} - Type: {appointment.appointment_type}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 // The main note editor component
-function NoteEditor({ patient, note, onChange }) {
-  if (!patient) {
-    return (
-      <div className="text-center py-12 text-gray-500">
-        Select a patient to create a note
-      </div>
-    );
-  }
-
+function NoteEditor({ note, onChange }) {
   return (
     <div className="space-y-6">
-      <div className="bg-blue-50 p-4 rounded-lg">
-        <h3 className="font-semibold text-blue-900">Patient: {patient.first_name} {patient.last_name}</h3>
-        <p className="text-sm text-blue-700">DOB: {patient.date_of_birth}</p>
-      </div>
-
+    <div>
+      <label className='block text-sm font-medium text-gray-700 mb-2'>
+        Patient Name
+      </label>
+      <input
+          type="text"
+          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="e.g., John Doe"
+          value={note.patientName}
+          onChange={(e) => onChange({ ...note, patientName: e.target.value })}
+        />
+    </div>
+    <div>
+      <label className='block text-sm font-medium text-gray-700 mb-2'>
+        Date
+      </label>
+      <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })}/>
+    </div>
       {/* Chief Complaint */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -213,11 +203,11 @@ function SavedNotes({ notes, onEdit, onDelete }) {
         <div key={note.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
           <div className="flex justify-between items-start mb-3">
             <div>
-              <h4 className="font-semibold text-gray-900">{note.patient.first_name} {note.patient.last_name}</h4>
+              <h4 className="font-semibold text-gray-900">{note.patientName}</h4>
               <p className="text-sm text-gray-600">{note.date}</p>
             </div>
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={() => onEdit(note)}
                 className="text-blue-600 hover:text-blue-800 text-sm"
               >
@@ -231,13 +221,13 @@ function SavedNotes({ notes, onEdit, onDelete }) {
               </button>
             </div>
           </div>
-          
+
           <div className="space-y-2 text-sm">
             <p><span className="font-medium">Chief Complaint:</span> {note.chiefComplaint}</p>
-            <p><span className="font-medium">S:</span> {note.subjective}</p>
-            <p><span className="font-medium">O:</span> {note.objective}</p>
-            <p><span className="font-medium">A:</span> {note.assessment}</p>
-            <p><span className="font-medium">P:</span> {note.plan}</p>
+            <p><span className="font-medium">S:</span> {typeof note.subjective === 'object' ? note.subjective?.text : note.subjective}</p>
+            <p><span className="font-medium">O:</span> {typeof note.objective === 'object' ? note.objective?.text : note.objective}</p>
+            <p><span className="font-medium">A:</span> {typeof note.assessment === 'object' ? note.assessment?.text : note.assessment}</p>
+            <p><span className="font-medium">P:</span> {typeof note.plan === 'object' ? note.plan?.text : note.plan}</p>
           </div>
         </div>
       ))}
@@ -247,11 +237,12 @@ function SavedNotes({ notes, onEdit, onDelete }) {
 
 // Main App Component
 export default function DentalNotesApp() {
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
+  const [user, setUser] = useState(null);
 
   const [currentNote, setCurrentNote] = useState({
+    patientName: '',
+    date: '',
     chiefComplaint: '',
     subjective: '',
     objective: '',
@@ -262,59 +253,38 @@ export default function DentalNotesApp() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
 
-  // fetch notes when patient changes
+  // Get authenticated user
   useEffect(() => {
-    if (!selectedPatient) {
-      setSavedNotes([]);
-      return;
-    }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, []);
 
+  // fetch notes
+  useEffect(() => {
     const fetchNotes = async () => {
+      if (!user) return;
+
       try {
         setLoadingNotes(true);
         const { data, error } = await supabase
           .from('notes')
-          .select(`
-            *,
-            appointments (
-              *
-            )
-          `)
-          .eq('appointment_id', 'in', `(select id from appointments where patient_id = '${selectedPatient.id}')`)
-          .order('created_at', { ascending: false });
-        
-        // Alternative simpler query if above doesn't work:
-        // First get all appointments for this patient
-        const { data: appointments } = await supabase
-          .from('appointments')
-          .select('id')
-          .eq('patient_id', selectedPatient.id);
-        
-        const appointmentIds = appointments?.map(a => a.id) || [];
-        
-        if (appointmentIds.length === 0) {
-          setSavedNotes([]);
-          setLoadingNotes(false);
-          return;
-        }
-
-        const { data: notesData, error: notesError } = await supabase
-          .from('notes')
           .select('*')
-          .in('appointment_id', appointmentIds)
-          .order('created_at', { ascending: false });
+          .eq('user_id', user.id)
+          .order('created_at', {ascending: false});
 
-        if (notesError) throw notesError;
+        if (error) throw error;
 
-        const transformedNotes = notesData.map(note => ({
+        const transformedNotes = data.map(note => ({
           ...note,
-          patient: selectedPatient,
+          patientName: note.patient_name,
           chiefComplaint: note.chief_complaint || '',
-          subjective: note.subjective?.text || '',
-          objective: note.objective?.text || '',
-          assessment: note.assessment?.text || '',
-          plan: note.plan?.text || '',
-          date: new Date(note.created_at).toLocaleDateString()
+          subjective: note.subjective?.text || note.subjective || '',
+          objective: note.objective?.text || note.objective || '',
+          assessment: note.assessment?.text || note.assessment || '',
+          plan: note.plan?.text || note.plan || ''
         }));
 
         setSavedNotes(transformedNotes);
@@ -326,16 +296,21 @@ export default function DentalNotesApp() {
       }
     };
     fetchNotes();
-  }, [selectedPatient]);
+  }, [user]);
 
   const handleSaveNote = async () => {
-    if (!selectedPatient) {
-      alert('Please select a patient');
+    if (!user) {
+      alert('Please log in to save notes');
       return;
     }
 
-    if (!selectedAppointment) {
-      alert('Please select an appointment');
+    if (!currentNote.patientName.trim()) {
+      alert('Please name a patient');
+      return;
+    }
+
+    if (!currentNote.date.trim()) {
+      alert('Please select a date');
       return;
     }
 
@@ -350,6 +325,8 @@ export default function DentalNotesApp() {
         const { data, error } = await supabase
           .from('notes')
           .update({
+            patient_name: currentNote.patientName,
+            date: currentNote.date,
             chief_complaint: currentNote.chiefComplaint,
             subjective: { text: currentNote.subjective },
             objective: { text: currentNote.objective },
@@ -357,6 +334,7 @@ export default function DentalNotesApp() {
             plan: { text: currentNote.plan },
           })
           .eq('id', editingNote.id)
+          .eq('user_id', user.id)
           .select();
 
         if (error) throw error;
@@ -364,16 +342,19 @@ export default function DentalNotesApp() {
         console.log('Updated note:', data);
 
         // Update in local state
-        setSavedNotes(savedNotes.map(note => 
-          note.id === editingNote.id 
+        setSavedNotes(savedNotes.map(note =>
+          note.id === editingNote.id
             ? {
-                ...note,
-                chiefComplaint: currentNote.chiefComplaint,
-                subjective: currentNote.subjective,
-                objective: currentNote.objective,
-                assessment: currentNote.assessment,
-                plan: currentNote.plan,
-              }
+              ...note,
+              ...data[0],
+              patientName: currentNote.patientName,
+              date: currentNote.date,
+              chiefComplaint: currentNote.chiefComplaint,
+              subjective: currentNote.subjective,
+              objective: currentNote.objective,
+              assessment: currentNote.assessment,
+              plan: currentNote.plan,
+            }
             : note
         ));
 
@@ -384,7 +365,9 @@ export default function DentalNotesApp() {
         const { data, error } = await supabase
           .from('notes')
           .insert([{
-            appointment_id: selectedAppointment.id,
+            user_id: user.id,
+            patient_name: currentNote.patientName,
+            date: currentNote.date,
             chief_complaint: currentNote.chiefComplaint,
             subjective: { text: currentNote.subjective },
             objective: { text: currentNote.objective },
@@ -400,30 +383,32 @@ export default function DentalNotesApp() {
 
         console.log('Saved note:', data);
 
-        // Add to local state
+        // Add to local state with proper transformation
         const newNote = {
           ...data[0],
-          patient: selectedPatient,
-          chiefComplaint: currentNote.chiefComplaint,
-          subjective: currentNote.subjective,
-          objective: currentNote.objective,
-          assessment: currentNote.assessment,
-          plan: currentNote.plan,
-          date: new Date().toLocaleDateString()
+          patientName: data[0].patient_name,
+          chiefComplaint: data[0].chief_complaint,
+          subjective: data[0].subjective?.text || data[0].subjective || '',
+          objective: data[0].objective?.text || data[0].objective || '',
+          assessment: data[0].assessment?.text || data[0].assessment || '',
+          plan: data[0].plan?.text || data[0].plan || ''
         };
 
         setSavedNotes([newNote, ...savedNotes]);
       }
 
       // Reset form
+      const today = new Date();
+      const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       setCurrentNote({
+        patientName: '',
+        date: dateString,
         chiefComplaint: '',
         subjective: '',
         objective: '',
         assessment: '',
         plan: ''
       });
-      setSelectedAppointment(null);
 
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -438,25 +423,14 @@ export default function DentalNotesApp() {
     try {
       // Load note data into form
       setCurrentNote({
+        patientName: note.patientName || note.patient_name || '',
+        date: note.date || '',
         chiefComplaint: note.chiefComplaint || note.chief_complaint || '',
         subjective: note.subjective?.text || note.subjective || '',
         objective: note.objective?.text || note.objective || '',
         assessment: note.assessment?.text || note.assessment || '',
         plan: note.plan?.text || note.plan || ''
       });
-
-      // Fetch and set the appointment
-      if (note.appointment_id) {
-        const { data: appointmentData, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('id', note.appointment_id)
-          .single();
-
-        if (!error && appointmentData) {
-          setSelectedAppointment(appointmentData);
-        }
-      }
 
       // Set editing state
       setEditingNote(note);
@@ -470,13 +444,14 @@ export default function DentalNotesApp() {
   const handleCancelEdit = () => {
     setEditingNote(null);
     setCurrentNote({
+      patientName: '',
+      date: '',
       chiefComplaint: '',
       subjective: '',
       objective: '',
       assessment: '',
       plan: ''
     });
-    setSelectedAppointment(null);
   };
 
   const handleDeleteNote = async (noteId) => {
@@ -488,7 +463,8 @@ export default function DentalNotesApp() {
       const { error } = await supabase
         .from('notes')
         .delete()
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -517,63 +493,40 @@ export default function DentalNotesApp() {
               {editingNote ? 'Edit Note' : 'Create New Note'}
             </h2>
 
-            {/* Hide dropdowns when editing */}
-            {!editingNote && (
-              <>
-                <PatientSelector
-                  selectedPatient={selectedPatient}
-                  onSelect={setSelectedPatient}
+            {!user ? (
+              <div className="text-center py-8 text-gray-500">
+                Please log in to create notes
+              </div>
+            ) : (
+              <div>
+                <NoteEditor
+                  note={currentNote}
+                  onChange={setCurrentNote}
                 />
 
-                {selectedPatient && (
-                  <AppointmentSelector
-                    selectedAppointment={selectedAppointment}
-                    selectedPatient={selectedPatient}
-                    onSelect={setSelectedAppointment}
-                  />
-                )}
-              </>
-            )}
-
-            {/* Show patient info when editing */}
-            {editingNote && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600 font-medium">Editing note for:</p>
-                <p className="text-lg font-semibold text-blue-900">
-                  {selectedPatient?.first_name} {selectedPatient?.last_name}
-                </p>
-              </div>
-            )}
-
-            <NoteEditor
-              patient={selectedPatient}
-              note={currentNote}
-              onChange={setCurrentNote}
-            />
-
-            {selectedPatient && (
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={handleSaveNote}
-                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors"
-                >
-                  {editingNote ? 'Update Note' : 'Save Note'}
-                </button>
-
-                {editingNote && (
+                <div className="mt-6 flex gap-3">
                   <button
-                    onClick={handleCancelEdit}
-                    className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
+                    onClick={handleSaveNote}
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors"
                   >
-                    Cancel
+                    {editingNote ? 'Update Note' : 'Save Note'}
                   </button>
-                )}
-              </div>
-            )}
 
-            {showSuccess && (
-              <div className="mt-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
-                Note {editingNote ? 'updated' : 'saved'} successfully!
+                  {editingNote && (
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+
+                {showSuccess && (
+                  <div className="mt-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+                    Note {editingNote ? 'updated' : 'saved'} successfully!
+                  </div>
+                )}
               </div>
             )}
           </div>

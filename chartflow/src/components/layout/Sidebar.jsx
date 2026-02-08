@@ -6,9 +6,6 @@ function Sidebar({ activePage, onPageChange }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'new-note', label: 'New Note', icon: '📝' },
-    { id: 'patients', label: 'Patients', icon: '👥' },
-    { id: 'appointments', label: 'Appointments', icon: '📅' },
-    { id: 'reports', label: 'Reports', icon: '📈' },
     { id: 'settings', label: 'Settings', icon: '⚙️' }
   ];
 
@@ -41,7 +38,7 @@ function Sidebar({ activePage, onPageChange }) {
       >
         {/* Logo/Header */}
         <div className="p-6 border-b border-gray-700">
-          <h1 className="text-2xl font-bold">🦷 DentalNote</h1>
+          <h1 className="text-2xl font-bold">ChartFlow</h1>
           <p className="text-gray-400 text-sm mt-1">Practice Management</p>
         </div>
 
@@ -73,7 +70,7 @@ function Sidebar({ activePage, onPageChange }) {
         </nav>
 
         {/* User info at bottom */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-gray-700">
+        <div className="fixed bottom-0 w-full p-4 border-t border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold">
               DR

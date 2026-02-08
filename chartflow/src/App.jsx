@@ -56,14 +56,6 @@ function App() {
         return <DashboardPage />;
       case 'new-note':
         return <NewNotePage />;
-      case 'appointments':
-        return <AppointmentsPage />;
-      case 'patients':
-        return <PatientsPage />;
-      //case 'reports':
-      //  return <ReportsPage />;
-      //case 'settings':
-      //  return <SettingsPage />;
       default:
         return <DashboardPage />;
     }
