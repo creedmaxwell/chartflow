@@ -5,9 +5,7 @@ import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import DashboardPage from './pages/DashboardPage';
 import NewNotePage from './pages/NewNotePage';
-import PatientsPage from './pages/PatientsPage';
-import AppointmentsPage from './pages/AppointmentsPage';
-//import ReportsPage from './pages/ReportsPage';
+import ChartsPage from './pages/ChartsPage';
 //import SettingsPage from './pages/SettingsPage';
 
 function App() {
@@ -56,6 +54,8 @@ function App() {
         return <DashboardPage />;
       case 'new-note':
         return <NewNotePage />;
+      case 'charts':
+        return <ChartsPage />;
       default:
         return <DashboardPage />;
     }

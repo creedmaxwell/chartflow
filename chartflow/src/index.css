@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.Odontogram path[fill="currentColor"] {
+  fill: white; /* or transparent */
+  transition: fill 0.3s ease;
+}
+
+/* Selected teeth styling */
+.Odontogram path[fill="currentColor"]:hover {
+    fill: #5e7dfc8f;
+}
+
+.Odontogram .selected path[fill="currentColor"] {
+  fill: #5e7dfc8f; /* or your preferred selection color */
+}
+
+/* Detail paths (the inner lines on teeth) */
+.Odontogram path[stroke="currentColor"] {
+  fill: none;
+}

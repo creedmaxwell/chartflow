@@ -6,6 +6,7 @@ function Sidebar({ activePage, onPageChange }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'new-note', label: 'New Note', icon: '📝' },
+    { id: 'charts', label: 'Charts', icon: '🦷' },
     { id: 'settings', label: 'Settings', icon: '⚙️' }
   ];
 
