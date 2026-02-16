@@ -680,7 +680,7 @@ function ChartsPage() {
             const { data, error } = await supabase
                 .from('charts')
                 .select('*')
-                .eq('patient_id', user.id)
+                .eq('user_id', user.id)
                 .order('updated_at', { ascending: false });
 
             if (error) throw error;
@@ -704,7 +704,7 @@ function ChartsPage() {
             const { data, error } = await supabase
                 .from('charts')
                 .insert([{
-                    patient_id: user.id,
+                    user_id: user.id,
                     title: `Chart ${new Date().toLocaleDateString()}`
                 }])
                 .select()
