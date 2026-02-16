@@ -100,12 +100,96 @@ function DentalChart({ chartId, onChartSaved }) {
     const [saveStatus, setSaveStatus] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // Get hex color for a tooth based on its conditions
+    const getToothColor = (toothId) => {
+        const data = chartData[toothId];
+        if (!data) return '#ffffff'; // white default
+        
+        // Priority order: missing > fracture > cavity > root_canal > crown > filling > others
+        const priority = ['missing', 'fracture', 'cavity', 'root_canal', 'crown', 'filling', 'bridge', 'implant', 'sealant', 'watch', 'extraction_planned'];
+        
+        // Check whole-tooth conditions first
+        for (const condition of priority) {
+            if (data.conditions?.includes(condition)) {
+                return getConditionHexColor(condition);
+            }
+        }
+        
+        // Check if any surface has a condition
+        if (data.surfaces) {
+            for (const surface of Object.values(data.surfaces)) {
+                if (surface?.condition) {
+                    return getConditionHexColor(surface.condition);
+                }
+            }
+        }
+        
+        return '#ffffff'; // white default
+    };
+
+    // Convert condition to hex color
+    const getConditionHexColor = (condition) => {
+        const colorMap = {
+            cavity: '#fecaca',      // red-200
+            filling: '#bfdbfe',     // blue-200
+            crown: '#fef08a',       // yellow-200
+            root_canal: '#fed7aa',  // orange-200
+            missing: '#d1d5db',     // gray-300
+            implant: '#9ca3af',     // gray-400
+            bridge: '#e9d5ff',      // purple-200
+            sealant: '#f3e8ff',     // purple-100
+            watch: '#fef9c3',       // yellow-100
+            fracture: '#fca5a5',    // red-300
+            extraction_planned: '#fee2e2', // red-100
+        };
+        return colorMap[condition] || '#ffffff';
+    };
+
+    // Inject dynamic styles for tooth colors whenever chartData changes
+    useEffect(() => {
+        const styleId = 'dynamic-tooth-colors';
+        
+        // Remove existing style element if it exists
+        const existingStyle = document.getElementById(styleId);
+        if (existingStyle) {
+            existingStyle.remove();
+        }
+
+        // Generate CSS for all teeth with conditions
+        const styles = Object.keys(chartData)
+            .map(toothId => {
+                const color = getToothColor(toothId);
+                return `.Odontogram .${toothId} path[fill="currentColor"] {
+                    fill: ${color};
+                }`;
+            })
+            .join('\n');
+
+        // Create and inject style tag
+        if (styles) {
+            const styleTag = document.createElement('style');
+            styleTag.id = styleId;
+            styleTag.textContent = styles;
+            document.head.appendChild(styleTag);
+        }
+
+        // Cleanup on unmount
+        return () => {
+            const styleToRemove = document.getElementById(styleId);
+            if (styleToRemove) {
+                styleToRemove.remove();
+            }
+        };
+    }, [chartData]);
+
+    // Load chart data when chartId changes
     useEffect(() => {
         if (chartId) {
             loadChartData(chartId);
         }
     }, [chartId]);
 
+    // Auto-save chart data after 1 second of inactivity
     useEffect(() => {
         if (!chartId) return;
         
@@ -273,17 +357,17 @@ function DentalChart({ chartId, onChartSaved }) {
     };
 
     const conditionOptions = [
-        { value: 'cavity', label: 'Cavity'},
-        { value: 'filling', label: 'Filling'},
-        { value: 'crown', label: 'Crown'},
-        { value: 'root_canal', label: 'Root Canal'},
-        { value: 'missing', label: 'Missing'},
-        { value: 'implant', label: 'Implant'},
-        { value: 'bridge', label: 'Bridge'},
-        { value: 'sealant', label: 'Sealant'},
-        { value: 'watch', label: 'Watch'},
-        { value: 'fracture', label: 'Fracture'},
-        { value: 'extraction_planned', label: 'Extract Plan'},
+        { value: 'cavity', label: 'Cavity', icon: '🦷' },
+        { value: 'filling', label: 'Filling', icon: '🔵' },
+        { value: 'crown', label: 'Crown', icon: '👑' },
+        { value: 'root_canal', label: 'Root Canal', icon: '🔶' },
+        { value: 'missing', label: 'Missing', icon: '❌' },
+        { value: 'implant', label: 'Implant', icon: '🔩' },
+        { value: 'bridge', label: 'Bridge', icon: '🌉' },
+        { value: 'sealant', label: 'Sealant', icon: '💜' },
+        { value: 'watch', label: 'Watch', icon: '👁️' },
+        { value: 'fracture', label: 'Fracture', icon: '💥' },
+        { value: 'extraction_planned', label: 'Extract Plan', icon: '🗓️' },
     ];
 
     return (
@@ -596,7 +680,7 @@ function ChartsPage() {
             const { data, error } = await supabase
                 .from('charts')
                 .select('*')
-                .eq('user_id', user.id)
+                .eq('patient_id', user.id)
                 .order('updated_at', { ascending: false });
 
             if (error) throw error;
@@ -620,7 +704,7 @@ function ChartsPage() {
             const { data, error } = await supabase
                 .from('charts')
                 .insert([{
-                    user_id: user.id,
+                    patient_id: user.id,
                     title: `Chart ${new Date().toLocaleDateString()}`
                 }])
                 .select()

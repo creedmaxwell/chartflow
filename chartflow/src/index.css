@@ -3,17 +3,23 @@
 @tailwind utilities;
 
 .Odontogram path[fill="currentColor"] {
-  fill: white; /* or transparent */
+  fill: white;
   transition: fill 0.3s ease;
 }
 
-/* Selected teeth styling */
-.Odontogram path[fill="currentColor"]:hover {
-    fill: #5e7dfc8f;
+.Odontogram path[stroke="currentColor"] {
+  stroke: #5e7dfc8f;
+  transition: stroke 0.3s ease;
 }
 
-.Odontogram .selected path[fill="currentColor"] {
-  fill: #5e7dfc8f; /* or your preferred selection color */
+/* Selected teeth styling */
+.Odontogram g[role="option"]:hover path[stroke="currentColor"] {
+  stroke: black;
+  /*stroke-width: 2pt;*/
+}
+
+.Odontogram .selected path[stroke="currentColor"] {
+  stroke: black;
 }
 
 /* Detail paths (the inner lines on teeth) */
