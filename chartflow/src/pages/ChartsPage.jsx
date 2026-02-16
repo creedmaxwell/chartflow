@@ -20,9 +20,9 @@ const DENTAL_COLORS = {
 
 // Get color classes for a condition
 const getConditionColors = (condition) => {
-    return DENTAL_COLORS[condition] || { 
-        bg: 'bg-gray-500', 
-        text: 'text-white', 
+    return DENTAL_COLORS[condition] || {
+        bg: 'bg-gray-500',
+        text: 'text-white',
         border: 'border-gray-500',
         light: 'bg-gray-100',
         lightText: 'text-gray-800'
@@ -72,7 +72,7 @@ function FileUpload(props) {
             {file.path} - {file.size} bytes
         </li>
     ));
-    
+
     return (
         <section className="container">
             <div {...getRootProps({ className: 'dropzone' })}>
@@ -104,17 +104,17 @@ function DentalChart({ chartId, onChartSaved }) {
     const getToothColor = (toothId) => {
         const data = chartData[toothId];
         if (!data) return '#ffffff'; // white default
-        
+
         // Priority order: missing > fracture > cavity > root_canal > crown > filling > others
         const priority = ['missing', 'fracture', 'cavity', 'root_canal', 'crown', 'filling', 'bridge', 'implant', 'sealant', 'watch', 'extraction_planned'];
-        
+
         // Check whole-tooth conditions first
         for (const condition of priority) {
             if (data.conditions?.includes(condition)) {
                 return getConditionHexColor(condition);
             }
         }
-        
+
         // Check if any surface has a condition
         if (data.surfaces) {
             for (const surface of Object.values(data.surfaces)) {
@@ -123,7 +123,7 @@ function DentalChart({ chartId, onChartSaved }) {
                 }
             }
         }
-        
+
         return '#ffffff'; // white default
     };
 
@@ -148,7 +148,7 @@ function DentalChart({ chartId, onChartSaved }) {
     // Inject dynamic styles for tooth colors whenever chartData changes
     useEffect(() => {
         const styleId = 'dynamic-tooth-colors';
-        
+
         // Remove existing style element if it exists
         const existingStyle = document.getElementById(styleId);
         if (existingStyle) {
@@ -192,7 +192,7 @@ function DentalChart({ chartId, onChartSaved }) {
     // Auto-save chart data after 1 second of inactivity
     useEffect(() => {
         if (!chartId) return;
-        
+
         const timeoutId = setTimeout(() => {
             saveChartData();
         }, 1000);
@@ -252,9 +252,9 @@ function DentalChart({ chartId, onChartSaved }) {
             if (teethToSave.length > 0) {
                 const { error: upsertError } = await supabase
                     .from('chart_teeth')
-                    .upsert(teethToSave, { 
+                    .upsert(teethToSave, {
                         onConflict: 'chart_id,tooth_id',
-                        ignoreDuplicates: false 
+                        ignoreDuplicates: false
                     });
 
                 if (upsertError) throw upsertError;
@@ -269,7 +269,7 @@ function DentalChart({ chartId, onChartSaved }) {
 
             setSaveStatus('Saved');
             if (onChartSaved) onChartSaved();
-            
+
             setTimeout(() => setSaveStatus(''), 2000);
         } catch (error) {
             console.error('Error saving chart:', error);
@@ -298,20 +298,32 @@ function DentalChart({ chartId, onChartSaved }) {
 
         setChartData(prev => {
             const updated = { ...prev };
-            
+
             selectedTeeth.forEach(tooth => {
-                updated[tooth.id] = {
-                    ...updated[tooth.id],
-                    surfaces: {
-                        ...updated[tooth.id]?.surfaces,
-                        [surface]: {
-                            condition: activeCondition,
-                            date: new Date().toISOString()
+                const currentSurface = updated[tooth.id]?.surfaces?.[surface];
+
+                // Toggle: if surface already has the active condition, remove it
+                if (currentSurface?.condition === activeCondition) {
+                    const { [surface]: removed, ...remainingSurfaces } = updated[tooth.id]?.surfaces || {};
+                    updated[tooth.id] = {
+                        ...updated[tooth.id],
+                        surfaces: remainingSurfaces
+                    };
+                } else {
+                    // Add or update surface with new condition
+                    updated[tooth.id] = {
+                        ...updated[tooth.id],
+                        surfaces: {
+                            ...updated[tooth.id]?.surfaces,
+                            [surface]: {
+                                condition: activeCondition,
+                                date: new Date().toISOString()
+                            }
                         }
-                    }
-                };
+                    };
+                }
             });
-            
+
             return updated;
         });
     };
@@ -321,7 +333,7 @@ function DentalChart({ chartId, onChartSaved }) {
 
         setChartData(prev => {
             const updated = { ...prev };
-            
+
             selectedTeeth.forEach((tooth) => {
                 const existingConditions = updated[tooth.id]?.conditions || [];
                 if (!existingConditions.includes(condition)) {
@@ -331,7 +343,7 @@ function DentalChart({ chartId, onChartSaved }) {
                     };
                 }
             });
-            
+
             return updated;
         });
     };
@@ -377,16 +389,15 @@ function DentalChart({ chartId, onChartSaved }) {
                 <div className="flex justify-between items-center mb-3">
                     <h2 className="text-lg font-semibold">Charting Tools</h2>
                     {saveStatus && (
-                        <span className={`text-sm font-medium ${
-                            saveStatus === 'Saved' ? 'text-green-600' : 
-                            saveStatus.includes('Error') ? 'text-red-600' : 
-                            'text-blue-600'
-                        }`}>
+                        <span className={`text-sm font-medium ${saveStatus === 'Saved' ? 'text-green-600' :
+                            saveStatus.includes('Error') ? 'text-red-600' :
+                                'text-blue-600'
+                            }`}>
                             {saveStatus}
                         </span>
                     )}
                 </div>
-                
+
                 {/* Color-coded condition buttons */}
                 <div className="flex gap-2 flex-wrap">
                     {conditionOptions.map(option => {
@@ -395,11 +406,10 @@ function DentalChart({ chartId, onChartSaved }) {
                             <button
                                 key={option.value}
                                 onClick={() => setActiveCondition(option.value)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                    activeCondition === option.value
-                                        ? `${colors.bg} ${colors.text} ring-2 ring-offset-2 ${colors.border}`
-                                        : `${colors.light} ${colors.lightText} hover:ring-2 ${colors.border}`
-                                }`}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all ${activeCondition === option.value
+                                    ? `${colors.bg} ${colors.text} ring-2 ring-offset-2 ${colors.border}`
+                                    : `${colors.light} ${colors.lightText} hover:ring-2 ${colors.border}`
+                                    }`}
                             >
                                 <span className="mr-1">{option.icon}</span>
                                 {option.label}
@@ -407,14 +417,14 @@ function DentalChart({ chartId, onChartSaved }) {
                         );
                     })}
                 </div>
-                
+
                 {/* Selection indicator */}
                 {selectedTeeth.length > 0 && (
                     <div className="mt-3 p-2 bg-blue-50 rounded">
                         <span className="text-sm font-medium">
                             {selectedTeeth.length} {selectedTeeth.length === 1 ? 'tooth' : 'teeth'} selected
                         </span>
-                        <button 
+                        <button
                             onClick={handleClearSelection}
                             className="ml-2 text-sm text-blue-600 hover:underline"
                         >
@@ -490,7 +500,7 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
             <h3 className="text-xl font-bold mb-4">
                 {selectedTeeth.length} Teeth Selected
             </h3>
-            
+
             <div className="mb-4 p-3 bg-gray-50 rounded">
                 <div className="text-sm font-medium mb-2">Selected teeth:</div>
                 <div className="flex flex-wrap gap-2">
@@ -548,8 +558,8 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
                                         {data.conditions.map((condition, idx) => {
                                             const condColors = getConditionColors(condition);
                                             return (
-                                                <span 
-                                                    key={idx} 
+                                                <span
+                                                    key={idx}
                                                     className={`px-2 py-0.5 rounded text-xs ${condColors.light} ${condColors.lightText}`}
                                                 >
                                                     {condition}
@@ -567,14 +577,14 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
     );
 }
 
-function ToothDetailPanel({ 
-    toothId, 
-    data, 
-    onSurfaceClick, 
-    onAddCondition, 
-    onRemoveCondition, 
-    onNotesChange, 
-    activeCondition 
+function ToothDetailPanel({
+    toothId,
+    data,
+    onSurfaceClick,
+    onAddCondition,
+    onRemoveCondition,
+    onNotesChange,
+    activeCondition
 }) {
     const surfaces = ['mesial', 'distal', 'occlusal', 'buccal', 'lingual'];
     const colors = getConditionColors(activeCondition);
@@ -589,19 +599,18 @@ function ToothDetailPanel({
                 <div className="grid grid-cols-2 gap-2">
                     {surfaces.map(surface => {
                         const surfaceData = data?.surfaces?.[surface];
-                        const surfaceColors = surfaceData?.condition 
+                        const surfaceColors = surfaceData?.condition
                             ? getConditionColors(surfaceData.condition)
                             : { border: 'border-gray-300', light: 'bg-white', lightText: 'text-gray-600' };
-                        
+
                         return (
                             <button
                                 key={surface}
                                 onClick={() => onSurfaceClick(surface)}
-                                className={`p-3 rounded-lg border-2 text-sm transition-all ${
-                                    surfaceData?.condition
-                                        ? `${surfaceColors.light} ${surfaceColors.border} ring-2 ring-offset-1`
-                                        : `border-gray-300 hover:${colors.light} hover:${colors.border}`
-                                }`}
+                                className={`p-3 rounded-lg border-2 text-sm transition-all ${surfaceData?.condition
+                                    ? `${surfaceColors.light} ${surfaceColors.border} ring-2 ring-offset-1`
+                                    : `border-gray-300 hover:${colors.light} hover:${colors.border}`
+                                    }`}
                             >
                                 <div className="font-medium capitalize">{surface}</div>
                                 {surfaceData && (
@@ -624,14 +633,14 @@ function ToothDetailPanel({
                 >
                     Add {activeCondition}
                 </button>
-                
+
                 {data?.conditions && data.conditions.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                         {data.conditions.map((condition, idx) => {
                             const condColors = getConditionColors(condition);
                             return (
-                                <span 
-                                    key={idx} 
+                                <span
+                                    key={idx}
                                     className={`px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2 ${condColors.light} ${condColors.lightText}`}
                                 >
                                     {condition}
@@ -686,7 +695,7 @@ function ChartsPage() {
             if (error) throw error;
 
             setCharts(data || []);
-            
+
             if (data && data.length > 0 && !currentChartId) {
                 setCurrentChartId(data[0].id);
             }
@@ -767,11 +776,10 @@ function ChartsPage() {
                                 <div key={chart.id} className="flex items-center gap-2">
                                     <button
                                         onClick={() => setCurrentChartId(chart.id)}
-                                        className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-all ${
-                                            currentChartId === chart.id
-                                                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                                                : 'bg-gray-200 hover:bg-gray-300'
-                                        }`}
+                                        className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-all ${currentChartId === chart.id
+                                            ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                                            : 'bg-gray-200 hover:bg-gray-300'
+                                            }`}
                                     >
                                         {chart.title}
                                     </button>
@@ -798,9 +806,9 @@ function ChartsPage() {
                 </div>
 
                 {currentChartId ? (
-                    <DentalChart 
+                    <DentalChart
                         key={currentChartId}
-                        chartId={currentChartId} 
+                        chartId={currentChartId}
                         onChartSaved={loadCharts}
                     />
                 ) : (
