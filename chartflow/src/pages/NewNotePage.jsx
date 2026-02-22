@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import supabase from '../lib/supabase'
 
 function CustomDateSelector({ value, onChange }) {
-  // Parse the ISO date string (YYYY-MM-DD) or get today's date
   const parseDate = () => {
     if (value) {
       const parts = value.split('-');
@@ -35,7 +34,6 @@ function CustomDateSelector({ value, onChange }) {
     setMonth(newMonth);
     setDay(newDay);
     setYear(newYear);
-    // Format as YYYY-MM-DD for PostgreSQL date type
     const dateString = `${newYear}-${String(newMonth).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
     onChange(dateString);
   };
@@ -89,7 +87,6 @@ function CustomDateSelector({ value, onChange }) {
   );
 }
 
-// The main note editor component
 function NoteEditor({ note, onChange }) {
   return (
     <div className="space-y-6">
@@ -111,7 +108,6 @@ function NoteEditor({ note, onChange }) {
       </label>
       <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })}/>
     </div>
-      {/* Chief Complaint */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Chief Complaint
@@ -125,7 +121,6 @@ function NoteEditor({ note, onChange }) {
         />
       </div>
 
-      {/* Subjective */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Subjective (S)
@@ -138,7 +133,6 @@ function NoteEditor({ note, onChange }) {
         />
       </div>
 
-      {/* Objective */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Objective (O)
@@ -151,7 +145,6 @@ function NoteEditor({ note, onChange }) {
         />
       </div>
 
-      {/* Assessment */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Assessment (A)
@@ -164,7 +157,6 @@ function NoteEditor({ note, onChange }) {
         />
       </div>
 
-      {/* Plan */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Plan (P)
@@ -180,7 +172,6 @@ function NoteEditor({ note, onChange }) {
   );
 }
 
-// Preview of saved notes
 function SavedNotes({ notes, onEdit, onDelete }) {
   if (notes.length === 0) {
     return (
@@ -229,7 +220,6 @@ function SavedNotes({ notes, onEdit, onDelete }) {
   );
 }
 
-// Main App Component
 export default function DentalNotesApp() {
   const [editingNote, setEditingNote] = useState(null);
   const [user, setUser] = useState(null);
@@ -247,7 +237,6 @@ export default function DentalNotesApp() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
 
-  // Get authenticated user
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -474,7 +463,6 @@ export default function DentalNotesApp() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Dental Notes</h1>
           <p className="text-gray-600 mt-1">Create and manage patient notes</p>
