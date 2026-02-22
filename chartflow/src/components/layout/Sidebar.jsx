@@ -4,10 +4,10 @@ function Sidebar({ activePage, onPageChange }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'new-note', label: 'New Note', icon: '📝' },
-    { id: 'charts', label: 'Charts', icon: '🦷' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' }
+    { id: 'dashboard', label: 'Dashboard'},
+    { id: 'new-note', label: 'New Note'},
+    { id: 'charts', label: 'Charts'},
+    { id: 'settings', label: 'Settings'}
   ];
 
   return (
@@ -40,7 +40,7 @@ function Sidebar({ activePage, onPageChange }) {
         {/* Logo/Header */}
         <div className="p-6 border-b border-gray-700">
           <h1 className="text-2xl font-bold">ChartFlow</h1>
-          <p className="text-gray-400 text-sm mt-1">Practice Management</p>
+          <p className="text-gray-400 text-sm mt-1">Agentic Workflow</p>
         </div>
 
         {/* Navigation */}

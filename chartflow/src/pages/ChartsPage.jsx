@@ -29,66 +29,159 @@ const getConditionColors = (condition) => {
     };
 };
 
-function FileUpload(props) {
-    const [uploadStatus, setUploadStatus] = useState('');
+// FILE UPLOADS
+
+const ACCEPTED_TYPES = {
+    'text/csv': ['.csv'],
+    'application/json': ['.json'],
+    'text/xml': ['.xml'],
+    'application/xml': ['.xml'],
+    'application/pdf': ['.pdf'],
+    'text/plain': ['.txt'],
+    'application/vnd.ms-excel': ['.xls'],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+};
+
+const STATUS_STYLES = {
+    pending:    { dot: 'bg-yellow-400', text: 'text-yellow-700', label: 'Pending' },
+    processing: { dot: 'bg-blue-400 animate-pulse', text: 'text-blue-700', label: 'Processing...' },
+    completed:  { dot: 'bg-green-400', text: 'text-green-700', label: 'Completed' },
+    failed:     { dot: 'bg-red-400', text: 'text-red-700', label: 'Failed' },
+};
+
+function StatusBadge({ status }) {
+    const s = STATUS_STYLES[status] || STATUS_STYLES.pending;
+    return (
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${s.text}`}>
+            <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+            {s.label}
+        </span>
+    );
+}
+
+export function FileUpload({ chartId, userId, onUploadComplete }) {
+    const [uploads, setUploads] = useState([]);
 
     const onDrop = useCallback(async (acceptedFiles) => {
         for (const file of acceptedFiles) {
-            try {
-                setUploadStatus('Uploading...');
-                const filePath = `uploads/${Date.now()}_${file.name}`;
+            const tempId = `${Date.now()}_${file.name}`;
 
-                const { data, error } = await supabase.storage
-                    .from('images')
+            // Add optimistic entry
+            setUploads(prev => [...prev, {
+                id: tempId,
+                file_name: file.name,
+                status: 'uploading',
+                created_at: new Date().toISOString(),
+            }]);
+
+            try {
+                // 1. Upload file to storage
+                const filePath = `${userId}/${chartId}/${Date.now()}_${file.name}`;
+                const { error: storageError } = await supabase.storage
+                    .from('chart-uploads')
                     .upload(filePath, file);
 
-                if (error) throw error;
+                if (storageError) throw storageError;
 
-                setUploadStatus(`Uploaded: ${file.name}`);
-                console.log('File uploaded successfully:', data);
+                // 2. Create uploads record — agent will pick up anything with status 'pending'
+                const { data: uploadRecord, error: dbError } = await supabase
+                    .from('uploads')
+                    .insert({
+                        chart_id: chartId,
+                        user_id: userId,
+                        file_name: file.name,
+                        file_path: filePath,
+                        file_type: file.type || 'application/octet-stream',
+                        status: 'pending',
+                    })
+                    .select()
+                    .single();
 
-                const { data: { publicUrl } } = supabase.storage
-                    .from('images')
-                    .getPublicUrl(filePath);
+                if (dbError) throw dbError;
 
-                console.log('File URL for AI:', publicUrl);
+                // Replace optimistic entry with real record
+                setUploads(prev =>
+                    prev.map(u => u.id === tempId ? uploadRecord : u)
+                );
+
+                if (onUploadComplete) onUploadComplete(uploadRecord);
 
             } catch (error) {
-                console.error('Error uploading file:', error.message);
-                setUploadStatus(`Failed: ${error.message}`);
+                console.error('Upload error:', error);
+                setUploads(prev =>
+                    prev.map(u =>
+                        u.id === tempId
+                            ? { ...u, status: 'failed', error_message: error.message }
+                            : u
+                    )
+                );
             }
         }
-    }, []);
+    }, [chartId, userId]);
 
-    const { getRootProps, getInputProps, acceptedFiles } = useDropzone({
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: {
-            'image/*': ['.jpeg', '.png', '.jpg', '.gif']
-        }
+        accept: ACCEPTED_TYPES,
+        disabled: !chartId,
     });
 
-    const files = acceptedFiles.map(file => (
-        <li key={file.path}>
-            {file.path} - {file.size} bytes
-        </li>
-    ));
-
     return (
-        <section className="container">
-            <div {...getRootProps({ className: 'dropzone' })}>
-                <div className='flex justify-center p-6'>
-                    <input {...getInputProps()} />
-                    <p className='text-gray-300'>Drag 'n' drop an image here, or click to select file</p>
+        <div className="space-y-4">
+            {/* Dropzone */}
+            <div
+                {...getRootProps()}
+                className={`
+                    relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
+                    ${!chartId ? 'opacity-50 cursor-not-allowed border-gray-200' : ''}
+                    ${isDragActive
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                    }
+                `}
+            >
+                <input {...getInputProps()} />
+
+                <div className="flex flex-col items-center gap-2">
+                    <div className={`text-3xl transition-transform ${isDragActive ? 'scale-125' : ''}`}>
+                        📂
+                    </div>
+                    <p className="text-sm font-medium text-gray-700">
+                        {isDragActive ? 'Drop your chart file here' : 'Drag & drop or click to upload'}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                        CSV, JSON, XML, PDF, Excel, TXT
+                    </p>
+                    {!chartId && (
+                        <p className="text-xs text-amber-600 font-medium mt-1">
+                            Select or create a chart first
+                        </p>
+                    )}
                 </div>
             </div>
-            <aside className="mt-4">
-                <h4 className="font-bold text-gray-700">Files:</h4>
-                <ul>{files}</ul>
-                {uploadStatus && (
-                    <p className="mt-2 text-blue-600 font-semibold">{uploadStatus}</p>
-                )}
-            </aside>
-        </section>
+
+            {/* Upload list */}
+            {uploads.length > 0 && (
+                <div className="space-y-2">
+                    {uploads.map(upload => (
+                        <div
+                            key={upload.id}
+                            className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-sm"
+                        >
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-gray-400">📄</span>
+                                <span className="text-gray-700 truncate">{upload.file_name}</span>
+                            </div>
+                            <div className="ml-3 shrink-0">
+                                {upload.status === 'uploading'
+                                    ? <span className="text-xs text-blue-600 animate-pulse">Uploading...</span>
+                                    : <StatusBadge status={upload.status} />
+                                }
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -369,17 +462,17 @@ function DentalChart({ chartId, onChartSaved }) {
     };
 
     const conditionOptions = [
-        { value: 'cavity', label: 'Cavity', icon: '🦷' },
-        { value: 'filling', label: 'Filling', icon: '🔵' },
-        { value: 'crown', label: 'Crown', icon: '👑' },
-        { value: 'root_canal', label: 'Root Canal', icon: '🔶' },
-        { value: 'missing', label: 'Missing', icon: '❌' },
-        { value: 'implant', label: 'Implant', icon: '🔩' },
-        { value: 'bridge', label: 'Bridge', icon: '🌉' },
-        { value: 'sealant', label: 'Sealant', icon: '💜' },
-        { value: 'watch', label: 'Watch', icon: '👁️' },
-        { value: 'fracture', label: 'Fracture', icon: '💥' },
-        { value: 'extraction_planned', label: 'Extract Plan', icon: '🗓️' },
+        { value: 'cavity', label: 'Cavity'},
+        { value: 'filling', label: 'Filling'},
+        { value: 'crown', label: 'Crown'},
+        { value: 'root_canal', label: 'Root Canal'},
+        { value: 'missing', label: 'Missing'},
+        { value: 'implant', label: 'Implant'},
+        { value: 'bridge', label: 'Bridge'},
+        { value: 'sealant', label: 'Sealant'},
+        { value: 'watch', label: 'Watch'},
+        { value: 'fracture', label: 'Fracture'},
+        { value: 'extraction_planned', label: 'Extract Plan'},
     ];
 
     return (
@@ -593,7 +686,6 @@ function ToothDetailPanel({
         <div>
             <h3 className="text-xl font-bold mb-4">Tooth {toothId.replace('teeth-', '')}</h3>
 
-            {/* Surface Selector with color coding */}
             <div className="mb-6">
                 <h4 className="font-semibold mb-2">Surfaces</h4>
                 <div className="grid grid-cols-2 gap-2">
@@ -624,7 +716,6 @@ function ToothDetailPanel({
                 </div>
             </div>
 
-            {/* Conditions with color-coded badges */}
             <div className="mb-4">
                 <h4 className="font-semibold mb-2">Conditions</h4>
                 <button
@@ -657,7 +748,6 @@ function ToothDetailPanel({
                 )}
             </div>
 
-            {/* Notes */}
             <div>
                 <h4 className="font-semibold mb-2">Notes</h4>
                 <textarea
@@ -800,7 +890,7 @@ function ChartsPage() {
                 <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
                     <h1 className="text-3xl font-bold text-gray-900">Import</h1>
                     <p className="text-gray-600 mt-1">Upload a chart</p>
-                    <div className='bg-gray-100 border-2 border-gray-300 border-dashed mt-6 cursor-pointer rounded-md'>
+                    <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
                         <FileUpload />
                     </div>
                 </div>

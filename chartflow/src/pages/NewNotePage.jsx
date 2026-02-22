@@ -85,12 +85,6 @@ function CustomDateSelector({ value, onChange }) {
           ))}
         </select>
       </div>
-
-      {month && day && year && (
-        <p className="mt-4 text-gray-700 font-medium">
-          Selected: {months[month - 1]} {day}, {year}
-        </p>
-      )}
     </div>
   );
 }
