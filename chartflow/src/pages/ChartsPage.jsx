@@ -59,7 +59,7 @@ function StatusBadge({ status }) {
     );
 }
 
-export function FileUpload({ chartId, userId, onUploadComplete }) {
+function FileUpload({ chartId, userId, onUploadComplete }) {
     const [uploads, setUploads] = useState([]);
 
     const onDrop = useCallback(async (acceptedFiles) => {
@@ -127,7 +127,6 @@ export function FileUpload({ chartId, userId, onUploadComplete }) {
 
     return (
         <div className="space-y-4">
-            {/* Dropzone */}
             <div
                 {...getRootProps()}
                 className={`
@@ -143,7 +142,7 @@ export function FileUpload({ chartId, userId, onUploadComplete }) {
 
                 <div className="flex flex-col items-center gap-2">
                     <div className={`text-3xl transition-transform ${isDragActive ? 'scale-125' : ''}`}>
-                        📂
+                        
                     </div>
                     <p className="text-sm font-medium text-gray-700">
                         {isDragActive ? 'Drop your chart file here' : 'Drag & drop or click to upload'}
@@ -159,7 +158,6 @@ export function FileUpload({ chartId, userId, onUploadComplete }) {
                 </div>
             </div>
 
-            {/* Upload list */}
             {uploads.length > 0 && (
                 <div className="space-y-2">
                     {uploads.map(upload => (
@@ -193,12 +191,10 @@ function DentalChart({ chartId, onChartSaved }) {
     const [saveStatus, setSaveStatus] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
-    // Get hex color for a tooth based on its conditions
     const getToothColor = (toothId) => {
         const data = chartData[toothId];
-        if (!data) return '#ffffff'; // white default
+        if (!data) return '#ffffff';
 
-        // Priority order: missing > fracture > cavity > root_canal > crown > filling > others
         const priority = ['missing', 'fracture', 'cavity', 'root_canal', 'crown', 'filling', 'bridge', 'implant', 'sealant', 'watch', 'extraction_planned'];
 
         // Check whole-tooth conditions first
@@ -217,23 +213,22 @@ function DentalChart({ chartId, onChartSaved }) {
             }
         }
 
-        return '#ffffff'; // white default
+        return '#ffffff';
     };
 
-    // Convert condition to hex color
     const getConditionHexColor = (condition) => {
         const colorMap = {
-            cavity: '#fecaca',      // red-200
-            filling: '#bfdbfe',     // blue-200
-            crown: '#fef08a',       // yellow-200
-            root_canal: '#fed7aa',  // orange-200
-            missing: '#d1d5db',     // gray-300
-            implant: '#9ca3af',     // gray-400
-            bridge: '#e9d5ff',      // purple-200
-            sealant: '#f3e8ff',     // purple-100
-            watch: '#fef9c3',       // yellow-100
-            fracture: '#fca5a5',    // red-300
-            extraction_planned: '#fee2e2', // red-100
+            cavity: '#fecaca',
+            filling: '#bfdbfe',
+            crown: '#fef08a',
+            root_canal: '#fed7aa',
+            missing: '#d1d5db',
+            implant: '#9ca3af',
+            bridge: '#e9d5ff',
+            sealant: '#f3e8ff',
+            watch: '#fef9c3',
+            fracture: '#fca5a5',
+            extraction_planned: '#fee2e2',
         };
         return colorMap[condition] || '#ffffff';
     };
@@ -492,7 +487,7 @@ function DentalChart({ chartId, onChartSaved }) {
                 </div>
 
                 {/* Color-coded condition buttons */}
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap justify-center">
                     {conditionOptions.map(option => {
                         const colors = getConditionColors(option.value);
                         return (
@@ -504,7 +499,6 @@ function DentalChart({ chartId, onChartSaved }) {
                                     : `${colors.light} ${colors.lightText} hover:ring-2 ${colors.border}`
                                     }`}
                             >
-                                <span className="mr-1">{option.icon}</span>
                                 {option.label}
                             </button>
                         );
@@ -763,13 +757,64 @@ function ToothDetailPanel({
 }
 
 function ChartsPage() {
-    const [currentChartId, setCurrentChartId] = useState(null);
+    const [currentChart, setCurrentChart] = useState(null);
     const [charts, setCharts] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
+    const [patientName, setPatientName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         loadCharts();
     }, []);
+
+    const handlePatientNameChange = (event) => {
+        setPatientName(event.target.value);
+    }
+
+    const saveStatus = async (chartId, status) => {
+        if (isSaving) return;
+        
+        try {
+            setIsSaving(true);
+            const {error} = await supabase
+                .from('charts')
+                .update({status: status})
+                .eq('id', chartId)
+                .select();
+            
+            if (error) throw error;
+
+            setCharts(prevCharts => 
+                prevCharts.map(chart => 
+                    chart.id === chartId ? { ...chart, status: status } : chart
+                )
+            );
+
+            setCurrentChart(prevChart => ({
+                ...prevChart,
+                status: status
+            }));
+
+        } catch (error) {
+            console.error('Error saving chart:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleStatusChange = async (chartId, status) => {
+        if (isSaving) return;
+
+        if (status === 'In Progress') {
+            saveStatus(chartId, 'Completed');
+        } else {
+            saveStatus(chartId, 'In Progress');
+        }
+    }
+
+    const handleSetCurrentChart = (chart) => {
+        setCurrentChart(chart);
+    }
 
     const loadCharts = async () => {
         try {
@@ -786,9 +831,7 @@ function ChartsPage() {
 
             setCharts(data || []);
 
-            if (data && data.length > 0 && !currentChartId) {
-                setCurrentChartId(data[0].id);
-            }
+            
         } catch (error) {
             console.error('Error loading charts:', error);
         }
@@ -804,7 +847,8 @@ function ChartsPage() {
                 .from('charts')
                 .insert([{
                     user_id: user.id,
-                    title: `Chart ${new Date().toLocaleDateString()}`
+                    title: `${new Date().toLocaleDateString()}`,
+                    patient_name: patientName
                 }])
                 .select()
                 .single();
@@ -812,7 +856,7 @@ function ChartsPage() {
             if (error) throw error;
 
             setCharts(prev => [data, ...prev]);
-            setCurrentChartId(data.id);
+            setCurrentChart(data);
         } catch (error) {
             console.error('Error creating chart:', error);
         } finally {
@@ -831,10 +875,13 @@ function ChartsPage() {
 
             if (error) throw error;
 
-            setCharts(prev => prev.filter(c => c.id !== chartId));
-            if (currentChartId === chartId) {
-                setCurrentChartId(charts[0]?.id || null);
+            const remainingCharts = charts.filter(c => c.id !== chartId);
+            setCharts(remainingCharts);
+            
+            if (currentChart?.id === chartId) {
+                setCurrentChart(null);
             }
+
         } catch (error) {
             console.error('Error deleting chart:', error);
         }
@@ -846,9 +893,15 @@ function ChartsPage() {
                 {/* Header */}
                 <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
                     <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-900">Charts</h1>
-                            <p className="text-gray-600 mt-1">Create and edit charts</p>
+                        <div className='flex'>
+                            <h1 className="text-3xl font-bold text-gray-900 mr-5">Charts</h1>
+                            <input
+                                type="text"
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Patient Name"
+                                value={patientName}
+                                onChange={handlePatientNameChange}
+                            />
                         </div>
                         <button
                             onClick={createNewChart}
@@ -861,27 +914,51 @@ function ChartsPage() {
 
                     {/* Chart Selector */}
                     {charts.length > 0 && (
-                        <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-                            {charts.map(chart => (
-                                <div key={chart.id} className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setCurrentChartId(chart.id)}
-                                        className={`px-4 py-2 rounded-lg whitespace-nowrap font-medium transition-all ${currentChartId === chart.id
-                                            ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                                            : 'bg-gray-200 hover:bg-gray-300'
-                                            }`}
-                                    >
-                                        {chart.title}
-                                    </button>
-                                    <button
-                                        onClick={() => deleteChart(chart.id)}
-                                        className="text-red-600 hover:text-red-800 px-2 text-xl font-bold"
-                                        title="Delete chart"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
+                        <div className="mt-4 overflow-x-auto border border-gray-200 rounded-lg">
+                            <table className="w-full text-sm text-left text-gray-600">
+                                <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                    <th scope="col" className="px-6 py-4 font-semibold">Date</th>
+                                    <th scope="col" className="px-6 py-4 font-semibold">Chart Type</th>
+                                    <th scope="col" className="px-6 py-4 font-semibold">Patient</th>
+                                    <th scope="col" className="px-6 py-4 font-semibold">Status</th>
+                                    <th scope="col" className="px-6 py-4 font-semibold text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {charts
+                                    .filter(chart => {
+                                        const searchTerm = patientName.trim().toLowerCase();
+
+                                        if (!searchTerm) return true;
+
+                                        const currentName = (chart.patient_name || '').toLowerCase();
+                                        
+                                        return currentName.includes(searchTerm);
+                                    })
+                                    .map(chart => (
+                                        <tr key={chart.id} className="bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">{chart.title}</td>
+                                            <td className="px-6 py-4">{chart.type}</td>
+                                            <td className="px-6 py-4 font-medium text-gray-900">{chart.patient_name}</td>
+                                            <td className="px-6 py-4">
+                                                <button 
+                                                    className={`text-xs font-medium px-2.5 py-1 rounded-md ${chart.status === 'In Progress'? 'bg-yellow-100 text-yellow-800': 'bg-green-100 text-green-800'} `}
+                                                    onClick={() => handleStatusChange(chart.id, chart.status)}
+                                                >{chart.status}</button>
+                                            </td>
+                                            <td className="px-6 py-4 text-right flex justify-end gap-3">
+                                                <button onClick={() => handleSetCurrentChart(chart)} className="text-gray-500 hover:text-blue-600" title="Edit">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                                </button>
+                                                <button onClick={() => deleteChart(chart.id)} className="text-red-500 hover:text-red-700" title="Delete">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -894,16 +971,41 @@ function ChartsPage() {
                         <FileUpload />
                     </div>
                 </div>
-
-                {currentChartId ? (
-                    <DentalChart
-                        key={currentChartId}
-                        chartId={currentChartId}
-                        onChartSaved={loadCharts}
-                    />
+                {currentChart ? (
+                    <div>
+                        <div className='bg-white rounded-lg shadow p-4 mb-4'>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">
+                                        {currentChart.patient_name || 'Unknown Patient'}
+                                    </h2>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Chart ID: #{currentChart.id.slice(0, 8)}
+                                    </p>
+                                </div>
+                                <div className="mt-2 md:mt-0">
+                                    <button
+                                        className={`text-s font-medium px-2.5 py-1 rounded-md mr-6 ${currentChart.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'} `}
+                                        onClick={() => handleStatusChange(currentChart.id, currentChart.status)}
+                                    >{currentChart.status}</button>
+                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                        <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        {currentChart.title}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <DentalChart
+                            key={currentChart.id}
+                            chartId={currentChart.id}
+                            onChartSaved={loadCharts}
+                        />
+                    </div>
                 ) : (
-                    <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-                        <p>Create a new chart to get started</p>
+                    <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 mb-6">
+                        <p>Select or create a new chart</p>
                     </div>
                 )}
             </div>
