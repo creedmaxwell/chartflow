@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import supabase from '../lib/supabase'
+import FileUpload from '../components/file_upload/FileUpload';
 
 function CustomDateSelector({ value, onChange }) {
   const parseDate = () => {
@@ -467,6 +468,26 @@ export default function DentalNotesApp() {
           <h1 className="text-3xl font-bold text-gray-900">Dental Notes</h1>
           <p className="text-gray-600 mt-1">Create and manage patient notes</p>
         </div>
+
+        <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
+          <h1 className="text-3xl font-bold text-gray-900">Transcribe</h1>
+          <p className="text-gray-600 mt-1">Upload an audio</p>
+          <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
+            <FileUpload
+              elementId={editingNote?.id}
+              userId={user?.id}
+              entityName="note"
+              bucketName="note-uploads"
+              dbColumnName="note_id"
+              acceptedTypes={{
+                'audio/*': ['.mp3', '.wav', '.m4a'],
+                'text/plain': ['.txt']
+              }}
+              acceptedTypesLabel="MP3, WAV, M4A, TXT"
+            />
+          </div>
+        </div>
+        
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column - Create/Edit Note */}
