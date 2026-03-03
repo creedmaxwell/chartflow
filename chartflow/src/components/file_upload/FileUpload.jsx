@@ -21,11 +21,10 @@ function StatusBadge({ status }) {
 
 function FileUpload({ 
     elementId, 
-    userId, 
     onUploadComplete,
-    // --- New Dynamic Props ---
     entityName = 'chart',           // For UI text (e.g., "chart" or "note")
     bucketName = 'chart-uploads',   // Supabase storage bucket
+    dbTableName = 'chart_uploads',
     dbColumnName = 'chart_id',      // Foreign key column in your 'uploads' table
     acceptedTypes,                  // The accepted object for useDropzone
     acceptedTypesLabel = 'CSV, JSON, XML, PDF, Excel, TXT' // UI helper text
@@ -33,6 +32,16 @@ function FileUpload({
     const [uploads, setUploads] = useState([]);
 
     const onDrop = useCallback(async (acceptedFiles) => {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            console.error("Authentication error:", authError);
+            alert("You must be logged in to upload files.");
+            return; 
+        }
+
+        const userId = user.id;
+
         for (const file of acceptedFiles) {
             const tempId = `${Date.now()}_${file.name}`;
 
@@ -55,7 +64,7 @@ function FileUpload({
 
                 // 2. Create uploads record dynamically
                 const { data: uploadRecord, error: dbError } = await supabase
-                    .from('uploads')
+                    .from(dbTableName)
                     .insert({
                         [dbColumnName]: elementId, // Dynamically sets 'chart_id' or 'note_id'
                         user_id: userId,
@@ -87,7 +96,7 @@ function FileUpload({
                 );
             }
         }
-    }, [elementId, userId, bucketName, dbColumnName, onUploadComplete]);
+    }, [elementId, bucketName, dbTableName, dbColumnName, onUploadComplete]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,

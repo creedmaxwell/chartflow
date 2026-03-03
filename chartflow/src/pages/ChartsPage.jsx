@@ -614,7 +614,7 @@ function ChartsPage() {
     }, []);
 
     const handlePatientNameChange = (event) => {
-        setPatientName(event.target.value);
+        setPatientName(event.target.value.trim());
     }
 
     const saveStatus = async (chartId, status) => {
@@ -684,6 +684,10 @@ function ChartsPage() {
     };
 
     const createNewChart = async () => {
+        if (!patientName.trim()) {
+            alert("Please enter a patient name.")
+            return;
+        }
         try {
             setIsCreating(true);
             const { data: { user } } = await supabase.auth.getUser();
@@ -693,7 +697,7 @@ function ChartsPage() {
                 .from('charts')
                 .insert([{
                     user_id: user.id,
-                    title: `${new Date().toLocaleDateString()}`,
+                    date: `${new Date().toLocaleDateString()}`,
                     patient_name: patientName
                 }])
                 .select()
@@ -784,7 +788,7 @@ function ChartsPage() {
                                     })
                                     .map(chart => (
                                         <tr key={chart.id} className="bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">{chart.title}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">{chart.date}</td>
                                             <td className="px-6 py-4">{chart.type}</td>
                                             <td className="px-6 py-4 font-medium text-gray-900">{chart.patient_name}</td>
                                             <td className="px-6 py-4">
@@ -814,7 +818,9 @@ function ChartsPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Import</h1>
                     <p className="text-gray-600 mt-1">Upload a chart</p>
                     <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
-                        <FileUpload />
+                        <FileUpload
+                            elementId={currentChart?.id}
+                        />
                     </div>
                 </div>
                 {currentChart ? (
@@ -838,7 +844,7 @@ function ChartsPage() {
                                         <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
-                                        {currentChart.title}
+                                        {currentChart.date}
                                     </span>
                                 </div>
                             </div>
