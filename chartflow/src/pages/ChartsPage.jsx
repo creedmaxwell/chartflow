@@ -29,7 +29,7 @@ const getConditionColors = (condition) => {
     };
 };
 
-function DentalChart({ chartId, onChartSaved }) {
+function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
     const [chartData, setChartData] = useState({});
     const [selectedTeeth, setSelectedTeeth] = useState([]);
     const [activeCondition, setActiveCondition] = useState('cavity');
@@ -121,7 +121,7 @@ function DentalChart({ chartId, onChartSaved }) {
         if (chartId) {
             loadChartData(chartId);
         }
-    }, [chartId]);
+    }, [chartId, refreshTrigger]);
 
     // Auto-save chart data after 1 second of inactivity
     useEffect(() => {
@@ -608,6 +608,7 @@ function ChartsPage() {
     const [isCreating, setIsCreating] = useState(false);
     const [patientName, setPatientName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useEffect(() => {
         loadCharts();
@@ -737,6 +738,32 @@ function ChartsPage() {
         }
     };
 
+    const handleUploadComplete = async (uploadRecord) => {
+    try {
+        // Ping your new FastAPI endpoint
+        const response = await fetch('http://localhost:8000/api/process-chart', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chart_id: uploadRecord.chart_id,
+                file_path: uploadRecord.file_path
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Agent failed to process the chart');
+        }
+
+        setRefreshTrigger(prev => prev + 1);
+        
+    } catch (error) {
+        console.error("Processing error:", error);
+        alert("There was an error parsing the chart with the AI agent.");
+    }
+};
+
     return (
         <div className="min-h-screen bg-gray-100">
             <div className="max-w-7xl mx-auto p-6">
@@ -820,6 +847,7 @@ function ChartsPage() {
                     <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
                         <FileUpload
                             elementId={currentChart?.id}
+                            onUploadComplete={handleUploadComplete}
                         />
                     </div>
                 </div>
@@ -853,6 +881,7 @@ function ChartsPage() {
                             key={currentChart.id}
                             chartId={currentChart.id}
                             onChartSaved={loadCharts}
+                            refreshTrigger={refreshTrigger}
                         />
                     </div>
                 ) : (
