@@ -4,7 +4,7 @@ import Login from './pages/Login';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import DashboardPage from './pages/DashboardPage';
-import NewNotePage from './pages/NewNotePage';
+import NotesPage from './pages/NotesPage';
 import ChartsPage from './pages/ChartsPage';
 //import SettingsPage from './pages/SettingsPage';
 
@@ -53,7 +53,7 @@ function App() {
       case 'dashboard':
         return <DashboardPage />;
       case 'new-note':
-        return <NewNotePage />;
+        return <NotesPage />;
       case 'charts':
         return <ChartsPage />;
       default:
