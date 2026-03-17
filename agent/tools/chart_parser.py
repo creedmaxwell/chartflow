@@ -157,3 +157,28 @@ def analyze_dental_chart(file_path: str) -> dict:
         # Returning the error ensures the LangGraph agent doesn't crash, 
         # but instead sees the error and can tell the user what went wrong.
         return {"status": "error", "message": str(e)}
+    
+@tool
+def extract_chart_from_note(note_text: str) -> dict:
+    """
+    Extracts structured dental chart data (teeth conditions, surfaces, notes) from a clinical free-text SOAP note.
+    Provide the full text of the clinical note.
+    """
+    try:
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        structured_llm = llm.with_structured_output(Chart)
+        
+        prompt = (
+            "You are an expert dental AI. Read the following clinical SOAP note and extract all "
+            "diagnosed conditions, existing restorations, and planned treatments into the exact JSON schema provided. "
+            "Only map conditions to specific teeth if they are explicitly mentioned.\n\n"
+            f"Clinical Note:\n{note_text}"
+        )
+        
+        message = HumanMessage(content=prompt)
+        result = structured_llm.invoke([message])
+        
+        return {"status": "success", "data": result.model_dump(mode='json')}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

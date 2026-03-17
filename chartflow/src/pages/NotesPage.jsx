@@ -124,6 +124,18 @@ function NoteEditor({ note, onChange }) {
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Medical History
+                </label>
+                <textarea
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
+                    placeholder="Preexisting conditions, previous work, drug allergies..."
+                    value={note.patient_history || ''}
+                    onChange={(e) => onChange({ ...note, patient_history: e.target.value })}
+                />
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                     Subjective (S)
                 </label>
                 <textarea
@@ -169,6 +181,18 @@ function NoteEditor({ note, onChange }) {
                     onChange={(e) => onChange({ ...note, plan: e.target.value })}
                 />
             </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Notes
+                </label>
+                <textarea
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
+                    placeholder='Any other remarks, patient preferences, follow-up instructions...'
+                    value={note.additional_notes || ''}
+                    onChange={(e) => onChange({ ...note, additional_notes: e.target.value })}
+                />
+            </div>
         </div>
     );
 }
@@ -181,6 +205,7 @@ export default function NotesPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [patientName, setPatientName] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
+    const [isGeneratingChart, setIsGeneratingChart] = useState(false);
 
     useEffect(() => {
         const getUser = async () => {
@@ -197,7 +222,7 @@ export default function NotesPage() {
     }, [user]);
 
     const handlePatientNameChange = (event) => {
-        setPatientName(event.target.value.trim());
+        setPatientName(event.target.value);
     };
 
     const loadNotes = async () => {
@@ -217,7 +242,9 @@ export default function NotesPage() {
                 subjective: note.subjective?.text || '',
                 objective: note.objective?.text || '',
                 assessment: note.assessment?.text || '',
-                plan: note.plan?.text || ''
+                plan: note.plan?.text || '',
+                patient_history: note.patient_history || '',
+                additional_notes: note.additional_notes || ''
             }));
 
             setNotes(transformedNotes || []);
@@ -293,7 +320,9 @@ export default function NotesPage() {
                     subjective: { text: '' },
                     objective: { text: '' },
                     assessment: { text: '' },
-                    plan: { text: '' }
+                    plan: { text: '' },
+                    patient_history: '',
+                    additional_notes: ''
                 }])
                 .select()
                 .single();
@@ -307,7 +336,9 @@ export default function NotesPage() {
                 subjective: data.subjective?.text || '',
                 objective: data.objective?.text || '',
                 assessment: data.assessment?.text || '',
-                plan: data.plan?.text || ''
+                plan: data.plan?.text || '',
+                patient_history: data.patient_history || '',
+                additional_notes: data.additional_notes || ''
             };
 
             setNotes(prev => [newNote, ...prev]);
@@ -339,6 +370,8 @@ export default function NotesPage() {
                     objective: { text: currentNote.objective },
                     assessment: { text: currentNote.assessment },
                     plan: { text: currentNote.plan },
+                    patient_history: currentNote.patient_history,
+                    additional_notes: currentNote.additional_notes
                 })
                 .eq('id', currentNote.id)
                 .select();
@@ -357,6 +390,8 @@ export default function NotesPage() {
                         objective: currentNote.objective,
                         assessment: currentNote.assessment,
                         plan: currentNote.plan,
+                        patient_history: currentNote.patient_history,
+                        additional_notes: currentNote.additional_notes
                     } : note
                 )
             );
@@ -389,6 +424,72 @@ export default function NotesPage() {
             }
         } catch (error) {
             console.error('Error deleting note:', error);
+        }
+    };
+
+    const handleGenerateChart = async () => {
+        if (!currentNote || !currentNote.patientName) {
+            alert("Please save the note with a patient name first.");
+            return;
+        }
+
+        try {
+            setIsGeneratingChart(true);
+
+            // --- 1. THE DUPLICATE CHECK ---
+            const { data: existingChart, error: checkError } = await supabase
+                .from('charts')
+                .select('id')
+                .eq('note_id', currentNote.id)
+                .single();
+
+            // If a chart exists, stop everything and alert the user
+            if (existingChart) {
+                alert("A chart has already been generated for this note! Please check the Charts tab.");
+                setIsGeneratingChart(false);
+                return;
+            }
+
+            // PGRST116 is the standard Supabase error for "0 rows returned". 
+            // We WANT 0 rows, so we only throw if it's a different database error.
+            if (checkError && checkError.code !== 'PGRST116') {
+                throw checkError;
+            }
+
+            // --- 2. THE GENERATION PAYLOAD ---
+            const combinedNoteText = `
+                Medical History: ${currentNote.patient_history || 'None'}
+                Chief Complaint: ${currentNote.chiefComplaint || 'None'}
+                Subjective: ${currentNote.subjective || 'None'}
+                Objective: ${currentNote.objective || 'None'}
+                Assessment: ${currentNote.assessment || 'None'}
+                Plan: ${currentNote.plan || 'None'}
+                Additional Notes: ${currentNote.additional_notes || 'None'}
+            `;
+
+            const response = await fetch('http://localhost:8000/api/chart-from-note', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user.id,
+                    patient_name: currentNote.patientName,
+                    date: currentNote.date,
+                    note_text: combinedNoteText,
+                    note_id: currentNote.id 
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.detail || 'Failed to generate chart');
+
+            alert('Chart successfully generated! You can view it in the Charts tab.');
+            
+        } catch (error) {
+            console.error("Chart generation error:", error);
+            alert("Error generating chart: " + error.message);
+        } finally {
+            setIsGeneratingChart(false);
         }
     };
 
@@ -507,12 +608,21 @@ export default function NotesPage() {
                                     >
                                         {currentNote.status || 'Draft'}
                                     </button>
-                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700 mr-6">
                                         <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         {currentNote.date}
                                     </span>
+                                    {currentNote.status === "finalized" && (
+                                        <button
+                                            onClick={handleGenerateChart}
+                                            disabled={isGeneratingChart || isSaving}
+                                            className=" bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 mr-6"
+                                        >
+                                            {isGeneratingChart ? 'Generating...' : 'Generate Chart'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

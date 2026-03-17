@@ -3,6 +3,22 @@ import supabase from '../lib/supabase';
 import Odontogram from 'react-odontogram';
 import FileUpload from '../components/file_upload/FileUpload';
 
+export const universalToFdi = {
+    // Top Right (Universal 1-8 -> FDI 18-11)
+    1: 18, 2: 17, 3: 16, 4: 15, 5: 14, 6: 13, 7: 12, 8: 11,
+    // Top Left (Universal 9-16 -> FDI 21-28)
+    9: 21, 10: 22, 11: 23, 12: 24, 13: 25, 14: 26, 15: 27, 16: 28,
+    // Bottom Left (Universal 17-24 -> FDI 38-31)
+    17: 38, 18: 37, 19: 36, 20: 35, 21: 34, 22: 33, 23: 32, 24: 31,
+    // Bottom Right (Universal 25-32 -> FDI 41-48)
+    25: 41, 26: 42, 27: 43, 28: 44, 29: 45, 30: 46, 31: 47, 32: 48
+};
+
+// Map FDI (React UI) -> Universal (Database)
+export const fdiToUniversal = Object.fromEntries(
+    Object.entries(universalToFdi).map(([universal, fdi]) => [fdi, universal])
+);
+
 // Industry-standard dental color codes
 const DENTAL_COLORS = {
     cavity: { bg: 'bg-red-500', text: 'text-white', border: 'border-red-500', light: 'bg-red-100', lightText: 'text-red-800' },
@@ -144,8 +160,15 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             if (error) throw error;
 
             const loadedData = {};
+
             data.forEach(tooth => {
-                loadedData[tooth.tooth_id] = {
+                const universalNum = parseInt(tooth.tooth_id.replace('teeth-', ''));
+
+                const fdiNum = universalToFdi[universalNum];
+
+                const uiKey = `teeth-${fdiNum}`;
+
+                loadedData[uiKey] = {
                     surfaces: tooth.surfaces || {},
                     conditions: tooth.conditions || [],
                     notes: tooth.notes || ''
@@ -167,22 +190,42 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             setIsSaving(true);
             setSaveStatus('Saving...');
 
-            const teethToSave = Object.entries(chartData).map(([toothId, data]) => ({
-                chart_id: chartId,
-                tooth_id: toothId,
-                surfaces: data.surfaces || {},
-                conditions: data.conditions || [],
-                notes: data.notes || ''
-            }));
+            // 1. Translate FDI keys back to Universal for saving
+            const teethToSave = Object.entries(chartData).map(([fdiKey, data]) => {
+                // fdiKey looks like "teeth-26"
+                const fdiNum = parseInt(fdiKey.replace('teeth-', ''));
+                const universalNum = fdiToUniversal[fdiNum];
+                
+                return {
+                    chart_id: chartId,
+                    tooth_id: `teeth-${universalNum}`, // Send "teeth-14" to the DB
+                    surfaces: data.surfaces || {},
+                    conditions: data.conditions || [],
+                    notes: data.notes || ''
+                };
+            });
 
-            const { error: deleteError } = await supabase
+            // 2. Translate the keys for the deletion check so Supabase knows what to keep
+            const universalKeysToKeep = Object.keys(chartData).map(fdiKey => {
+                const fdiNum = parseInt(fdiKey.replace('teeth-', ''));
+                const universalNum = fdiToUniversal[fdiNum];
+                return `teeth-${universalNum}`;
+            });
+
+            // 3. Safely delete removed teeth using the Universal keys
+            let deleteQuery = supabase
                 .from('chart_teeth')
                 .delete()
-                .eq('chart_id', chartId)
-                .not('tooth_id', 'in', `(${Object.keys(chartData).join(',')})`);
+                .eq('chart_id', chartId);
 
+            if (universalKeysToKeep.length > 0) {
+                deleteQuery = deleteQuery.not('tooth_id', 'in', `(${universalKeysToKeep.join(',')})`);
+            }
+            
+            const { error: deleteError } = await deleteQuery;
             if (deleteError) throw deleteError;
 
+            // 4. Upsert the translated data
             if (teethToSave.length > 0) {
                 const { error: upsertError } = await supabase
                     .from('chart_teeth')
@@ -389,6 +432,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                     <Odontogram
                         key={odontoKey}
                         status={toothSelection}
+                        notation="Universal"
                         onChange={handleToothClick}
                     />
                 </div>
@@ -615,7 +659,7 @@ function ChartsPage() {
     }, []);
 
     const handlePatientNameChange = (event) => {
-        setPatientName(event.target.value.trim());
+        setPatientName(event.target.value);
     }
 
     const saveStatus = async (chartId, status) => {

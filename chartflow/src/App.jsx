@@ -52,7 +52,7 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <DashboardPage />;
-      case 'new-note':
+      case 'notes':
         return <NotesPage />;
       case 'charts':
         return <ChartsPage />;
