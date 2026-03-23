@@ -653,6 +653,9 @@ function ChartsPage() {
     const [patientName, setPatientName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+    const [availableNotes, setAvailableNotes] = useState([]);
+    const [noteSearchTerm, setNoteSearchTerm] = useState('');
 
     useEffect(() => {
         loadCharts();
@@ -782,6 +785,92 @@ function ChartsPage() {
         }
     };
 
+    const createChartFromNote = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Fetch user's notes, ordered by newest first
+            const { data, error } = await supabase
+                .from('notes')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('status', 'finalized')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            setAvailableNotes(data || []);
+            setIsNoteModalOpen(true); // Open the modal
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+            alert('Could not load notes.');
+        }
+    };
+
+    const handleSelectNoteForChart = async (note) => {
+        try {
+            setIsCreating(true);
+
+            // 1. Check if chart already exists for this note
+            const { data: existingChart, error: checkError } = await supabase
+                .from('charts')
+                .select('id')
+                .eq('note_id', note.id)
+                .single();
+
+            if (existingChart) {
+                alert("A chart has already been generated for this note!");
+                setIsCreating(false);
+                return;
+            }
+
+            if (checkError && checkError.code !== 'PGRST116') {
+                throw checkError;
+            }
+
+            // 2. Format the payload using the raw Supabase JSON structure
+            const combinedNoteText = `
+            Medical History: ${note.patient_history || 'None'}
+            Chief Complaint: ${note.chief_complaint || 'None'}
+            Subjective: ${note.subjective?.text || 'None'}
+            Objective: ${note.objective?.text || 'None'}
+            Assessment: ${note.assessment?.text || 'None'}
+            Plan: ${note.plan?.text || 'None'}
+            Additional Notes: ${note.additional_notes || 'None'}
+        `;
+
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // 3. Send to your agent
+            const response = await fetch('http://localhost:8000/api/chart-from-note', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: user.id,
+                    patient_name: note.patient_name,
+                    date: note.date,
+                    note_text: combinedNoteText,
+                    note_id: note.id
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.detail || 'Failed to generate chart');
+
+            alert('Chart successfully generated!');
+            setIsNoteModalOpen(false); // Close modal on success
+            loadCharts(); // Refresh the charts list
+
+        } catch (error) {
+            console.error("Chart generation error:", error);
+            alert("Error generating chart: " + error.message);
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     const handleUploadComplete = async (uploadRecord) => {
     try {
         // Ping your new FastAPI endpoint
@@ -824,13 +913,22 @@ function ChartsPage() {
                                 onChange={handlePatientNameChange}
                             />
                         </div>
-                        <button
-                            onClick={createNewChart}
-                            disabled={isCreating}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-                        >
-                            {isCreating ? 'Creating...' : '+ New Chart'}
-                        </button>
+                        <div>
+                            <button
+                                onClick={createChartFromNote}
+                                disabled={isCreating}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium mr-6"
+                            >
+                                {isCreating ? 'Generating...' : 'Generate Chart from Note'}
+                            </button>
+                            <button
+                                onClick={createNewChart}
+                                disabled={isCreating}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                            >
+                                {isCreating ? 'Creating...' : '+ New Chart'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Chart Selector */}
@@ -934,6 +1032,77 @@ function ChartsPage() {
                     </div>
                 )}
             </div>
+            {/* Note Selection Modal */}
+            {isNoteModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+
+                        {/* Modal Header & Search */}
+                        <div className="p-4 border-b flex flex-col gap-4 bg-gray-50 rounded-t-lg">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-xl font-bold text-gray-800">Select Note to Generate Chart</h2>
+                                <button
+                                    onClick={() => {
+                                        setIsNoteModalOpen(false);
+                                        setNoteSearchTerm(''); // Clear search when closing
+                                    }}
+                                    className="text-gray-500 hover:text-gray-800 font-bold text-xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search notes by patient name..."
+                                value={noteSearchTerm}
+                                onChange={(e) => setNoteSearchTerm(e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {availableNotes.length === 0 ? (
+                                <p className="text-gray-500 text-center py-8">No finalized notes available. Finalize a note first.</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {availableNotes
+                                        .filter(note =>
+                                            (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase())
+                                        )
+                                        .map(note => (
+                                            <div key={note.id} className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:bg-blue-50 transition-colors">
+                                                <div className="mb-3 sm:mb-0">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-bold text-lg text-gray-900">{note.patient_name || 'Unknown Patient'}</span>
+                                                        <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-gray-100 text-gray-600">
+                                                            {note.date}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-sm mt-2 text-gray-700 max-w-xl">
+                                                        <span className="font-semibold text-gray-900">CC:</span> {note.chief_complaint || 'No chief complaint recorded'}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleSelectNoteForChart(note)}
+                                                    disabled={isCreating}
+                                                    className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 w-full sm:w-auto shrink-0"
+                                                >
+                                                    {isCreating ? 'Selecting...' : 'Select'}
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                    {/* Show message if search yields no results */}
+                                    {availableNotes.filter(note => (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase())).length === 0 && (
+                                        <p className="text-gray-500 text-center py-4">No patients found matching "{noteSearchTerm}"</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
