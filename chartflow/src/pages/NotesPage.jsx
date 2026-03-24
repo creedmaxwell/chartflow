@@ -240,8 +240,11 @@ export default function NotesPage() {
     const [patientName, setPatientName] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
     const [isGeneratingChart, setIsGeneratingChart] = useState(false);
+    
+    // UI STATES for audio processing and notifications
     const [isProcessingAudio, setIsProcessingAudio] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState('success'); // 'success' | 'error'
 
     useEffect(() => {
         const getUser = async () => {
@@ -257,6 +260,28 @@ export default function NotesPage() {
         }
     }, [user]);
 
+    // --- FAILSAFE TIMEOUT EFFECT ---
+    useEffect(() => {
+        let timeoutId;
+        
+        // If the spinner is active, start a 2-minute countdown
+        if (isProcessingAudio) {
+            timeoutId = setTimeout(() => {
+                setIsProcessingAudio(false);
+                setToastType('error');
+                setToastMessage('Transcription took too long or failed. Please check your connection and try again.');
+                
+                // Auto-hide the error after 6 seconds
+                setTimeout(() => setToastMessage(''), 6000);
+            }, 120000); // 120,000 ms = 2 minutes
+        }
+
+        // Cleanup the timer if the transcription finishes successfully before 2 minutes
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [isProcessingAudio]);
+
     // --- REAL-TIME SUBSCRIPTION EFFECT ---
     useEffect(() => {
         if (!user) return;
@@ -266,7 +291,7 @@ export default function NotesPage() {
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT', // Only listen for newly generated notes
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'notes',
                     filter: `user_id=eq.${user.id}` 
@@ -274,17 +299,18 @@ export default function NotesPage() {
                 (payload) => {
                     console.log('Real-time new note detected:', payload);
                     
-                    // Stop the loading animation
+                    // 1. Stop the loading animation (this also clears the failsafe timeout)
                     setIsProcessingAudio(false);
                     
-                    // Show the success toast
-                    setToastMessage('✨ Note successfully generated from audio!');
-                    setTimeout(() => setToastMessage(''), 5000); // Hide after 5 seconds
+                    // 2. Show the success toast
+                    setToastType('success');
+                    setToastMessage('Note successfully generated from audio!');
+                    setTimeout(() => setToastMessage(''), 5000);
                     
-                    // Refresh the notes list
+                    // 3. Refresh the notes list
                     loadNotes();
 
-                    // Map the raw database payload to the frontend format and set it as the active note
+                    // 4. Map the raw database payload to the frontend format and auto-select it
                     const newNote = {
                         ...payload.new,
                         patientName: payload.new.patient_name,
@@ -590,12 +616,12 @@ export default function NotesPage() {
     return (
         <div className="min-h-screen bg-gray-100 relative">
             
-            {/* Global Toast Notification */}
+            {/* Dynamic Global Toast Notification */}
             {toastMessage && (
-                <div className="fixed top-6 right-6 z-50 bg-gray-900 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-fade-in-down">
-                    <span className="text-xl">✅</span>
+                <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-fade-in-down text-white ${toastType === 'success' ? 'bg-gray-900' : 'bg-red-600'}`}>
+                    <span className="text-xl">{toastType === 'success' ? '✨' : '⚠️'}</span>
                     <p className="font-medium">{toastMessage}</p>
-                    <button onClick={() => setToastMessage('')} className="ml-4 text-gray-400 hover:text-white">
+                    <button onClick={() => setToastMessage('')} className="ml-4 text-white opacity-70 hover:opacity-100">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -683,6 +709,12 @@ export default function NotesPage() {
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
                             <p className="text-blue-800 font-semibold text-lg">AI is generating your note...</p>
                             <p className="text-blue-600 text-sm mt-1">This usually takes about a minute depending on the audio length.</p>
+                            <button 
+                                onClick={() => setIsProcessingAudio(false)}
+                                className="mt-4 text-sm text-blue-500 hover:text-blue-700 underline"
+                            >
+                                Cancel Waiting
+                            </button>
                         </div>
                     ) : (
                         <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
@@ -699,7 +731,6 @@ export default function NotesPage() {
                                 }}
                                 acceptedTypesLabel="MP3, WAV, M4A, TXT"
                                 onUploadComplete={() => {
-                                    // Trigger the loading state once the file is safely in Supabase
                                     setIsProcessingAudio(true);
                                 }}
                             />
