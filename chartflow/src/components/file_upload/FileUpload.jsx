@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import supabase from '../../lib/supabase'
+import supabase from '../../lib/supabase';
 
 const STATUS_STYLES = {
     pending:    { dot: 'bg-yellow-400', text: 'text-yellow-700', label: 'Pending' },
@@ -20,14 +20,14 @@ function StatusBadge({ status }) {
 }
 
 function FileUpload({ 
-    elementId, 
+    elementId,
     onUploadComplete,
-    entityName = 'chart',           // For UI text (e.g., "chart" or "note")
-    bucketName = 'chart-uploads',   // Supabase storage bucket
+    entityName = 'chart',          
+    bucketName = 'chart-uploads',  
     dbTableName = 'chart_uploads',
-    dbColumnName = 'chart_id',      // Foreign key column in your 'uploads' table
-    acceptedTypes,                  // The accepted object for useDropzone
-    acceptedTypesLabel = 'CSV, JSON, XML, PDF, Excel, TXT' // UI helper text
+    dbColumnName = 'chart_id',     
+    acceptedTypes,                 
+    acceptedTypesLabel = 'CSV, JSON, XML, PDF, Excel, TXT' 
 }) {
     const [uploads, setUploads] = useState([]);
 
@@ -55,24 +55,34 @@ function FileUpload({
 
             try {
                 // 1. Upload file to the dynamic storage bucket
-                const filePath = `${userId}/${elementId}/${Date.now()}_${file.name}`;
+                // If there's no elementId, place it in an 'unassigned' folder so it doesn't break the path
+                const folderPath = elementId ? elementId : 'unassigned';
+                const filePath = `${userId}/${folderPath}/${Date.now()}_${file.name}`;
+                
                 const { error: storageError } = await supabase.storage
                     .from(bucketName)
                     .upload(filePath, file);
 
                 if (storageError) throw storageError;
 
-                // 2. Create uploads record dynamically
+                // 2. Create the base insert payload
+                const payload = {
+                    user_id: userId,
+                    file_name: file.name,
+                    file_path: filePath,
+                    file_type: file.type || 'application/octet-stream',
+                    status: 'pending',
+                };
+
+                // Only attach the elementId if we actually have one
+                if (elementId) {
+                    payload[dbColumnName] = elementId;
+                }
+
+                // 3. Create uploads record
                 const { data: uploadRecord, error: dbError } = await supabase
                     .from(dbTableName)
-                    .insert({
-                        [dbColumnName]: elementId, // Dynamically sets 'chart_id' or 'note_id'
-                        user_id: userId,
-                        file_name: file.name,
-                        file_path: filePath,
-                        file_type: file.type || 'application/octet-stream',
-                        status: 'pending',
-                    })
+                    .insert(payload)
                     .select()
                     .single();
 
@@ -98,19 +108,19 @@ function FileUpload({
         }
     }, [elementId, bucketName, dbTableName, dbColumnName, onUploadComplete]);
 
+    // Removed the disabled property so users can always drop files
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: acceptedTypes,
-        disabled: !elementId,
+        accept: acceptedTypes
     });
 
     return (
         <div className="space-y-4">
             <div
                 {...getRootProps()}
+                // Cleaned up the disabled styling logic since it's always active now
                 className={`
                     relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
-                    ${!elementId ? 'opacity-50 cursor-not-allowed border-gray-200' : ''}
                     ${isDragActive
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
@@ -126,11 +136,7 @@ function FileUpload({
                     <p className="text-xs text-gray-400">
                         {acceptedTypesLabel}
                     </p>
-                    {!elementId && (
-                        <p className="text-xs text-amber-600 font-medium mt-1">
-                            Select or create a {entityName} first
-                        </p>
-                    )}
+                    {/* Removed the "Select or create a note first" warning */}
                 </div>
             </div>
 
