@@ -49,7 +49,7 @@ function CustomDateSelector({ value, onChange }) {
     const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
 
     return (
-        <div className="p-6 max-w-md mx-auto">
+        <div className="w-full">
             <div className="flex gap-3">
                 <select
                     value={month}
@@ -88,26 +88,60 @@ function CustomDateSelector({ value, onChange }) {
     );
 }
 
+function ReadOnlyNote({ note }) {
+    const Section = ({ title, content }) => {
+        if (!content || content.trim() === '') return null;
+        return (
+            <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">{title}</h3>
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-gray-800 whitespace-pre-wrap">{content}</p>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-2 mt-4">
+            <Section title="Chief Complaint" content={note.chiefComplaint} />
+            <Section title="Medical History" content={note.patient_history} />
+            <Section title="Subjective (S)" content={note.subjective} />
+            <Section title="Objective (O)" content={note.objective} />
+            <Section title="Assessment (A)" content={note.assessment} />
+            <Section title="Plan (P)" content={note.plan} />
+            <Section title="Additional Notes" content={note.additional_notes} />
+
+            {(!note.chiefComplaint && !note.patient_history && !note.subjective && !note.objective && !note.assessment && !note.plan && !note.additional_notes) && (
+                <div className="text-center text-gray-400 py-8 italic">
+                    This note is currently empty.
+                </div>
+            )}
+        </div>
+    );
+}
+
 function NoteEditor({ note, onChange }) {
     return (
         <div className="space-y-6">
-            <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    Patient Name
-                </label>
-                <input
-                    type="text"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., John Doe"
-                    value={note.patientName || ''}
-                    onChange={(e) => onChange({ ...note, patientName: e.target.value })}
-                />
-            </div>
-            <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    Date
-                </label>
-                <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })} />
+            <div className='flex justify-between w-full'>
+                <div className='flex-1 mr-4'>
+                    <label className='block text-sm font-medium text-gray-700 mb-2'>
+                        Patient Name
+                    </label>
+                    <input
+                        type="text"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., John Doe"
+                        value={note.patientName || ''}
+                        onChange={(e) => onChange({ ...note, patientName: e.target.value })}
+                    />
+                </div>
+                <div className='flex-1'>
+                    <label className='block text-sm font-medium text-gray-700 mb-2'>
+                        Date
+                    </label>
+                    <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })} />
+                </div>
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -221,6 +255,19 @@ export default function NotesPage() {
         }
     }, [user]);
 
+    // --- AUTOSAVE EFFECT ---
+    useEffect(() => {
+        // Skip if there's no note or it's missing the essential patient name
+        if (!currentNote || !currentNote.patientName?.trim()) return;
+
+        // Set a timer to save 1.5 seconds after the user stops typing
+        const debounceTimer = setTimeout(() => {
+            handleSaveNote(true); // Pass true to indicate it's an autosave
+        }, 1500);
+
+        return () => clearTimeout(debounceTimer);
+    }, [currentNote]); // Triggers every time currentNote changes
+
     const handlePatientNameChange = (event) => {
         setPatientName(event.target.value);
     };
@@ -296,7 +343,7 @@ export default function NotesPage() {
     };
 
     const createNewNote = async () => {
-        if (!patientName.trim()){
+        if (!patientName.trim()) {
             alert("Please enter a patient name.")
             return;
         }
@@ -350,11 +397,12 @@ export default function NotesPage() {
         }
     };
 
-    const handleSaveNote = async () => {
+    // Modified to accept isAutoSave parameter
+    const handleSaveNote = async (isAutoSave = false) => {
         if (!user || !currentNote) return;
 
         if (!currentNote.patientName?.trim()) {
-            alert('Please name a patient');
+            if (!isAutoSave) alert('Please name a patient');
             return;
         }
 
@@ -396,11 +444,14 @@ export default function NotesPage() {
                 )
             );
 
-            setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 3000);
+            // Only show the success alert if the user manually saved
+            if (!isAutoSave) {
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 3000);
+            }
         } catch (error) {
             console.error('Error saving note:', error);
-            alert('Failed to save note: ' + error.message);
+            if (!isAutoSave) alert('Failed to save note: ' + error.message);
         } finally {
             setIsSaving(false);
         }
@@ -475,7 +526,7 @@ export default function NotesPage() {
                     patient_name: currentNote.patientName,
                     date: currentNote.date,
                     note_text: combinedNoteText,
-                    note_id: currentNote.id 
+                    note_id: currentNote.id
                 })
             });
 
@@ -484,7 +535,7 @@ export default function NotesPage() {
             if (!response.ok) throw new Error(result.detail || 'Failed to generate chart');
 
             alert('Chart successfully generated! You can view it in the Charts tab.');
-            
+
         } catch (error) {
             console.error("Chart generation error:", error);
             alert("Error generating chart: " + error.message);
@@ -545,12 +596,11 @@ export default function NotesPage() {
                                                 <td className="px-6 py-4">{note.note_type}</td>
                                                 <td className="px-6 py-4 font-medium text-gray-900">{note.patient_name}</td>
                                                 <td className="px-6 py-4">
-                                                    <button
+                                                    <label
                                                         className={`text-xs font-medium px-2.5 py-1 rounded-md ${note.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}
-                                                        onClick={() => handleStatusChange(note.id, note.status)}
                                                     >
                                                         {note.status || 'Draft'}
-                                                    </button>
+                                                    </label>
                                                 </td>
                                                 <td className="px-6 py-4 text-right flex justify-end gap-3">
                                                     <button onClick={() => handleSetCurrentNote(note)} className="text-gray-500 hover:text-blue-600" title="Edit">
@@ -574,7 +624,8 @@ export default function NotesPage() {
                     <p className="text-gray-600 mt-1">Upload an audio</p>
                     <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
                         <FileUpload
-                            elementId={currentNote?.id}
+                            elementId={currentNote?.id || null}
+                            userId={user?.id}
                             entityName="note"
                             bucketName="note-uploads"
                             dbTableName='audio_uploads'
@@ -584,6 +635,9 @@ export default function NotesPage() {
                                 'text/plain': ['.txt']
                             }}
                             acceptedTypesLabel="MP3, WAV, M4A, TXT"
+                            onUploadComplete={() => {
+                                loadNotes();
+                            }}
                         />
                     </div>
                 </div>
@@ -591,6 +645,7 @@ export default function NotesPage() {
                 {/* Editor Container */}
                 {currentNote ? (
                     <div>
+                        <h1 className='text-4xl mb-6 mt-12 font-bold'>Note Editor</h1>
                         <div className='bg-white rounded-lg shadow p-4 mb-4'>
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                                 <div>
@@ -602,50 +657,70 @@ export default function NotesPage() {
                                     </p>
                                 </div>
                                 <div className="mt-2 md:mt-0 flex items-center">
-                                    <button
+                                    <label
                                         className={`text-sm font-medium px-2.5 py-1 rounded-md mr-6 ${currentNote.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}
-                                        onClick={() => handleStatusChange(currentNote.id, currentNote.status)}
                                     >
                                         {currentNote.status || 'Draft'}
-                                    </button>
+                                    </label>
                                     <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700 mr-6">
                                         <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         {currentNote.date}
                                     </span>
-                                    {currentNote.status === "finalized" && (
-                                        <button
-                                            onClick={handleGenerateChart}
-                                            disabled={isGeneratingChart || isSaving}
-                                            className=" bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 mr-6"
-                                        >
-                                            {isGeneratingChart ? 'Generating...' : 'Generate Chart'}
-                                        </button>
-                                    )}
                                 </div>
                             </div>
                         </div>
 
                         <div className="bg-white rounded-lg shadow-sm p-6">
-                            <h2 className="text-xl font-semibold text-gray-800 mb-6">Edit Note</h2>
-                            <NoteEditor
-                                note={currentNote}
-                                onChange={setCurrentNote}
-                            />
-                            
-                            <div className="mt-6">
-                                <button
-                                    onClick={handleSaveNote}
-                                    disabled={isSaving}
-                                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
-                                >
-                                    {isSaving ? 'Saving...' : 'Save Note'}
-                                </button>
-                                {showSuccess && (
-                                    <div className="mt-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-center font-medium">
-                                        Note saved successfully!
-                                    </div>
+                            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                <h2 className="text-xl font-semibold text-gray-800">
+                                    {currentNote.status === 'finalized' ? 'Clinical Note' : 'Edit Note'}
+                                </h2>
+
+                                <div className="flex items-center gap-4">
+                                    {/* Auto-save indicators only show in draft mode */}
+                                    {currentNote.status === 'draft' && isSaving && <span className="text-sm text-gray-500">Saving...</span>}
+                                    {currentNote.status === 'draft' && showSuccess && <span className="text-sm text-green-600">Saved successfully</span>}
+
+                                    {/* The explicit Unlock button */}
+                                    {currentNote.status === 'finalized' && (
+                                        <button
+                                            onClick={() => handleStatusChange(currentNote.id, 'finalized')}
+                                            className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            Unlock for Editing
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Conditional Rendering: Form vs Read-Only */}
+                            {currentNote.status === 'finalized' ? (
+                                <ReadOnlyNote note={currentNote} />
+                            ) : (
+                                <NoteEditor note={currentNote} onChange={setCurrentNote} />
+                            )}
+
+                            <div className="mt-8 pt-6 border-t border-gray-200">
+                                {/* Conditional Bottom Button */}
+                                {currentNote.status === 'finalized' ? (
+                                    <button
+                                        onClick={handleGenerateChart}
+                                        disabled={isGeneratingChart || isSaving}
+                                        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
+                                    >
+                                        {isGeneratingChart ? 'Generating Chart...' : 'Generate Chart'}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleStatusChange(currentNote.id, 'draft')}
+                                        disabled={isSaving}
+                                        className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50"
+                                    >
+                                        {isSaving ? 'Saving...' : 'Finalize Note'}
+                                    </button>
                                 )}
                             </div>
                         </div>
