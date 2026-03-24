@@ -240,6 +240,8 @@ export default function NotesPage() {
     const [patientName, setPatientName] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
     const [isGeneratingChart, setIsGeneratingChart] = useState(false);
+    const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
 
     useEffect(() => {
         const getUser = async () => {
@@ -255,18 +257,66 @@ export default function NotesPage() {
         }
     }, [user]);
 
+    // --- REAL-TIME SUBSCRIPTION EFFECT ---
+    useEffect(() => {
+        if (!user) return;
+
+        const notesSubscription = supabase
+            .channel('custom-notes-channel')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT', // Only listen for newly generated notes
+                    schema: 'public',
+                    table: 'notes',
+                    filter: `user_id=eq.${user.id}` 
+                },
+                (payload) => {
+                    console.log('Real-time new note detected:', payload);
+                    
+                    // Stop the loading animation
+                    setIsProcessingAudio(false);
+                    
+                    // Show the success toast
+                    setToastMessage('✨ Note successfully generated from audio!');
+                    setTimeout(() => setToastMessage(''), 5000); // Hide after 5 seconds
+                    
+                    // Refresh the notes list
+                    loadNotes();
+
+                    // Map the raw database payload to the frontend format and set it as the active note
+                    const newNote = {
+                        ...payload.new,
+                        patientName: payload.new.patient_name,
+                        chiefComplaint: payload.new.chief_complaint || '',
+                        subjective: payload.new.subjective?.text || '',
+                        objective: payload.new.objective?.text || '',
+                        assessment: payload.new.assessment?.text || '',
+                        plan: payload.new.plan?.text || '',
+                        patient_history: payload.new.patient_history || '',
+                        additional_notes: payload.new.additional_notes || ''
+                    };
+                    
+                    setCurrentNote(newNote);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(notesSubscription);
+        };
+    }, [user]);
+
     // --- AUTOSAVE EFFECT ---
     useEffect(() => {
-        // Skip if there's no note or it's missing the essential patient name
         if (!currentNote || !currentNote.patientName?.trim()) return;
 
-        // Set a timer to save 1.5 seconds after the user stops typing
         const debounceTimer = setTimeout(() => {
-            handleSaveNote(true); // Pass true to indicate it's an autosave
+            handleSaveNote(true); 
         }, 1500);
 
         return () => clearTimeout(debounceTimer);
-    }, [currentNote]); // Triggers every time currentNote changes
+    }, [currentNote]); 
 
     const handlePatientNameChange = (event) => {
         setPatientName(event.target.value);
@@ -397,7 +447,6 @@ export default function NotesPage() {
         }
     };
 
-    // Modified to accept isAutoSave parameter
     const handleSaveNote = async (isAutoSave = false) => {
         if (!user || !currentNote) return;
 
@@ -444,7 +493,6 @@ export default function NotesPage() {
                 )
             );
 
-            // Only show the success alert if the user manually saved
             if (!isAutoSave) {
                 setShowSuccess(true);
                 setTimeout(() => setShowSuccess(false), 3000);
@@ -487,27 +535,22 @@ export default function NotesPage() {
         try {
             setIsGeneratingChart(true);
 
-            // --- 1. THE DUPLICATE CHECK ---
             const { data: existingChart, error: checkError } = await supabase
                 .from('charts')
                 .select('id')
                 .eq('note_id', currentNote.id)
                 .single();
 
-            // If a chart exists, stop everything and alert the user
             if (existingChart) {
                 alert("A chart has already been generated for this note! Please check the Charts tab.");
                 setIsGeneratingChart(false);
                 return;
             }
 
-            // PGRST116 is the standard Supabase error for "0 rows returned". 
-            // We WANT 0 rows, so we only throw if it's a different database error.
             if (checkError && checkError.code !== 'PGRST116') {
                 throw checkError;
             }
 
-            // --- 2. THE GENERATION PAYLOAD ---
             const combinedNoteText = `
                 Medical History: ${currentNote.patient_history || 'None'}
                 Chief Complaint: ${currentNote.chiefComplaint || 'None'}
@@ -545,7 +588,19 @@ export default function NotesPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gray-100 relative">
+            
+            {/* Global Toast Notification */}
+            {toastMessage && (
+                <div className="fixed top-6 right-6 z-50 bg-gray-900 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-fade-in-down">
+                    <span className="text-xl">✅</span>
+                    <p className="font-medium">{toastMessage}</p>
+                    <button onClick={() => setToastMessage('')} className="ml-4 text-gray-400 hover:text-white">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto p-6">
                 {/* Header Block & Table */}
                 <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -619,27 +674,37 @@ export default function NotesPage() {
                 </div>
 
                 {/* Transcribe Block */}
-                <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
+                <div className='bg-white rounded-lg shadow-sm p-6 mb-6 transition-all duration-300'>
                     <h1 className="text-3xl font-bold text-gray-900">Transcribe</h1>
                     <p className="text-gray-600 mt-1">Upload an audio</p>
-                    <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
-                        <FileUpload
-                            elementId={currentNote?.id || null}
-                            userId={user?.id}
-                            entityName="note"
-                            bucketName="note-uploads"
-                            dbTableName='audio_uploads'
-                            dbColumnName="note_id"
-                            acceptedTypes={{
-                                'audio/*': ['.mp3', '.wav', '.m4a'],
-                                'text/plain': ['.txt']
-                            }}
-                            acceptedTypesLabel="MP3, WAV, M4A, TXT"
-                            onUploadComplete={() => {
-                                loadNotes();
-                            }}
-                        />
-                    </div>
+                    
+                    {isProcessingAudio ? (
+                        <div className="mt-6 border-2 border-blue-200 border-dashed bg-blue-50 rounded-lg p-10 flex flex-col items-center justify-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                            <p className="text-blue-800 font-semibold text-lg">AI is generating your note...</p>
+                            <p className="text-blue-600 text-sm mt-1">This usually takes about a minute depending on the audio length.</p>
+                        </div>
+                    ) : (
+                        <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
+                            <FileUpload
+                                elementId={currentNote?.id || null}
+                                userId={user?.id}
+                                entityName="note"
+                                bucketName="note-uploads"
+                                dbTableName='audio_uploads'
+                                dbColumnName="note_id"
+                                acceptedTypes={{
+                                    'audio/*': ['.mp3', '.wav', '.m4a'],
+                                    'text/plain': ['.txt']
+                                }}
+                                acceptedTypesLabel="MP3, WAV, M4A, TXT"
+                                onUploadComplete={() => {
+                                    // Trigger the loading state once the file is safely in Supabase
+                                    setIsProcessingAudio(true);
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Editor Container */}
@@ -679,14 +744,12 @@ export default function NotesPage() {
                                 </h2>
 
                                 <div className="flex items-center gap-4">
-                                    {/* Auto-save indicators only show in draft mode */}
                                     {currentNote.status === 'draft' && isSaving && <span className="text-sm text-gray-500">Saving...</span>}
                                     {currentNote.status === 'draft' && showSuccess && <span className="text-sm text-green-600">Saved successfully</span>}
 
-                                    {/* The explicit Unlock button */}
                                     {currentNote.status === 'finalized' && (
                                         <button
-                                            onClick={() => handleStatusChange(currentNote.id, 'finalized')}
+                                            onClick={() => handleStatusChange(currentNote.id, 'draft')}
                                             className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                                         >
                                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
@@ -696,7 +759,6 @@ export default function NotesPage() {
                                 </div>
                             </div>
 
-                            {/* Conditional Rendering: Form vs Read-Only */}
                             {currentNote.status === 'finalized' ? (
                                 <ReadOnlyNote note={currentNote} />
                             ) : (
@@ -704,7 +766,6 @@ export default function NotesPage() {
                             )}
 
                             <div className="mt-8 pt-6 border-t border-gray-200">
-                                {/* Conditional Bottom Button */}
                                 {currentNote.status === 'finalized' ? (
                                     <button
                                         onClick={handleGenerateChart}
@@ -715,7 +776,7 @@ export default function NotesPage() {
                                     </button>
                                 ) : (
                                     <button
-                                        onClick={() => handleStatusChange(currentNote.id, 'draft')}
+                                        onClick={() => handleStatusChange(currentNote.id, 'finalized')}
                                         disabled={isSaving}
                                         className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50"
                                     >
