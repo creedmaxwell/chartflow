@@ -1,6 +1,7 @@
 import os
 import tempfile
 import uvicorn
+import re
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -87,11 +88,14 @@ async def process_transcription(audio_file: UploadFile = File(...)):
 
         transcript_text = response.results.channels[0].alternatives[0].transcript
 
-        structured_note = note_generator.invoke({"transcription": transcript_text})
+        # This removes [DURATION_1], [DURATION_2], [SILENCE], etc.
+        clean_transcript = re.sub(r'\[.*?\]', '', transcript_text).strip()
+
+        structured_note = note_generator.invoke({"transcription": clean_transcript})
 
         return {
             "status": "success", 
-            "raw_transcript": transcript_text,
+            "raw_transcript": clean_transcript,
             "structured_note": structured_note
         }
         

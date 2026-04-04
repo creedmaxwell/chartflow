@@ -36,6 +36,8 @@ def create_note_generator_tool(llm):
         system_prompt = """You are an expert dental scribe. Analyze the following appointment transcription and extract the information into a structured clinical note. 
         
         If a specific section is not mentioned in the transcript, return an empty string ("") for that field. Do not make up information.
+
+        CRITICAL RULE: Completely ignore any technical transcription artifacts, timecodes, or bracketed text (e.g., [DURATION_1], [silence]). Do not include them in your output.
         
         Structure your output strictly according to these definitions:
         - chief_complaint: The primary reason for the patient's visit.
