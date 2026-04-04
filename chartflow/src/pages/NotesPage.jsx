@@ -300,31 +300,7 @@ export default function NotesPage() {
                 (payload) => {
                     console.log('Real-time new note detected:', payload);
                     
-                    // 1. Stop the loading animation (this also clears the failsafe timeout)
-                    setIsProcessingAudio(false);
-                    
-                    // 2. Show the success toast
-                    setToastType('success');
-                    setToastMessage('Note successfully generated from audio!');
-                    setTimeout(() => setToastMessage(''), 5000);
-                    
-                    // 3. Refresh the notes list
                     loadNotes();
-
-                    // 4. Map the raw database payload to the frontend format and auto-select it
-                    const newNote = {
-                        ...payload.new,
-                        patientName: payload.new.patient_name,
-                        chiefComplaint: payload.new.chief_complaint || '',
-                        subjective: payload.new.subjective?.text || '',
-                        objective: payload.new.objective?.text || '',
-                        assessment: payload.new.assessment?.text || '',
-                        plan: payload.new.plan?.text || '',
-                        patient_history: payload.new.patient_history || '',
-                        additional_notes: payload.new.additional_notes || ''
-                    };
-                    
-                    setCurrentNote(newNote);
                 }
             )
             .subscribe();
@@ -420,11 +396,6 @@ export default function NotesPage() {
     };
 
     const handleAudioSubmit = async (audioData, filename) => {
-        if (!currentNote) {
-            alert("Please select or create a note first before submitting audio.");
-            return;
-        }
-
         setIsProcessingAudio(true);
         setToastMessage('');
 
@@ -440,20 +411,66 @@ export default function NotesPage() {
             const data = await response.json();
             
             if (data.status === "success" && data.structured_note) {
-                // We map the LangGraph JSON directly into our UI state!
-                setCurrentNote(prev => ({
-                    ...prev,
-                    chiefComplaint: data.structured_note.chief_complaint || prev.chiefComplaint,
-                    patient_history: data.structured_note.patient_history || prev.patient_history,
-                    subjective: data.structured_note.subjective || prev.subjective,
-                    objective: data.structured_note.objective || prev.objective,
-                    assessment: data.structured_note.assessment || prev.assessment,
-                    plan: data.structured_note.plan || prev.plan,
-                    additional_notes: data.structured_note.additional_notes || prev.additional_notes,
-                }));
+                const aiData = data.structured_note;
+
+                if (currentNote) {
+                    // SCENARIO A: A note is already selected. Update it.
+                    setCurrentNote(prev => ({
+                        ...prev,
+                        chiefComplaint: aiData.chief_complaint || prev.chiefComplaint,
+                        patient_history: aiData.patient_history || prev.patient_history,
+                        subjective: aiData.subjective || prev.subjective,
+                        objective: aiData.objective || prev.objective,
+                        assessment: aiData.assessment || prev.assessment,
+                        plan: aiData.plan || prev.plan,
+                        additional_notes: aiData.additional_notes || prev.additional_notes,
+                    }));
+                } else {
+                    // SCENARIO B: Cold start. Create a brand new note in Supabase.
+                    const today = new Date();
+                    const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                    const { data: newDbNote, error } = await supabase
+                        .from('notes')
+                        .insert([{
+                            user_id: user.id,
+                            patient_name: 'New Audio Patient', // A placeholder so the user knows to change it
+                            date: dateString,
+                            note_type: 'SOAP',
+                            status: 'draft',
+                            generated_by: 'audio_upload', // Prevents the real-time listener from double-firing
+                            chief_complaint: aiData.chief_complaint || '',
+                            subjective: { text: aiData.subjective || '' },
+                            objective: { text: aiData.objective || '' },
+                            assessment: { text: aiData.assessment || '' },
+                            plan: { text: aiData.plan || '' },
+                            patient_history: aiData.patient_history || '',
+                            additional_notes: aiData.additional_notes || ''
+                        }])
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+
+                    const formattedNote = {
+                        ...newDbNote,
+                        patientName: newDbNote.patient_name,
+                        chiefComplaint: newDbNote.chief_complaint || '',
+                        subjective: newDbNote.subjective?.text || '',
+                        objective: newDbNote.objective?.text || '',
+                        assessment: newDbNote.assessment?.text || '',
+                        plan: newDbNote.plan?.text || '',
+                        patient_history: newDbNote.patient_history || '',
+                        additional_notes: newDbNote.additional_notes || ''
+                    };
+
+                    // Add it to the sidebar and instantly open it in the editor
+                    setNotes(prev => [formattedNote, ...prev]);
+                    setCurrentNote(formattedNote);
+                }
                 
                 setToastType('success');
-                setToastMessage('Note successfully populated from audio!');
+                setToastMessage('Note successfully generated from audio!');
                 setTimeout(() => setToastMessage(''), 5000);
             } else {
                 throw new Error(data.detail || "Error processing audio");
@@ -753,7 +770,7 @@ export default function NotesPage() {
                 <div className='bg-white rounded-lg shadow-sm p-6 mb-6 transition-all duration-300'>
                     <h1 className="text-3xl font-bold text-gray-900">Transcribe</h1>
                     <p className="text-gray-600 mt-1">
-                        {!currentNote ? "Select or create a note first to begin dictation." : "Upload an audio file or record dictation."}
+                        Upload an audio file or record dictation to automatically create a note.
                     </p>
                     
                     {isProcessingAudio ? (
@@ -770,11 +787,8 @@ export default function NotesPage() {
                         </div>
                     ) : (
                         <div className='bg-gray-100 mt-6 rounded-md'>
-                            {/* Pass our new function down to the component */}
-                            <AudioInputHandler 
-                                onAudioSubmit={handleAudioSubmit} 
-                                disabled={!currentNote} 
-                            />
+                            {/* The handler is now permanently enabled */}
+                            <AudioInputHandler onAudioSubmit={handleAudioSubmit} />
                         </div>
                     )}
                 </div>
