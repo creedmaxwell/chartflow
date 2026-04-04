@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import base64
 import fitz
@@ -9,7 +8,6 @@ from typing_extensions import Self
 
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ====================================== SCHEMAS ======================================
 
@@ -116,69 +114,79 @@ def parse_document(file_path: str) -> dict:
 
 # ====================================== TOOL DEFINITION ======================================
 
-@tool
-def analyze_dental_chart(file_path: str) -> dict:
-    """
-    Parses a patient's dental chart file (PDF, Image, Text, Excel) and extracts the structured dental records.
-    Provide the absolute file path to the document to be analyzed.
-    """
-    try:
-        # 1. Parse the document based on its extension
-        parsed_data = parse_document(file_path)
-        
-        # 2. Initialize the LLM specifically for this extraction task
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-        structured_llm = llm.with_structured_output(Chart)
-        
-        prompt_text = "Extract the patient dental chart data from the provided document. Follow the exact JSON schema."
-        
-        # 3. Build the multimodal or text message
-        if parsed_data["type"] == "text":
-            message = HumanMessage(content=f"{prompt_text}\n\nDocument Content:\n{parsed_data['content']}")
-            
-        elif parsed_data["type"] == "image":
-            content_parts = [{"type": "text", "text": prompt_text}]
-            for base64_img in parsed_data["content"]:
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{base64_img}"}
-                })
-            message = HumanMessage(content=content_parts)
-        else:
-            return {"error": "Invalid parsed data type."}
-
-        # 4. Invoke the LLM
-        result = structured_llm.invoke([message])
-        
-        # 5. Return the clean dictionary (Pydantic V2 syntax)
-        return {"status": "success", "data": result.model_dump(mode="json")}
-
-    except Exception as e:
-        # Returning the error ensures the LangGraph agent doesn't crash, 
-        # but instead sees the error and can tell the user what went wrong.
-        return {"status": "error", "message": str(e)}
+def create_analyze_chart_tool(llm):
+    """Factory function to inject the LLM into the analyze_dental_chart tool."""
     
-@tool
-def extract_chart_from_note(note_text: str) -> dict:
-    """
-    Extracts structured dental chart data (teeth conditions, surfaces, notes) from a clinical free-text SOAP note.
-    Provide the full text of the clinical note.
-    """
-    try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-        structured_llm = llm.with_structured_output(Chart)
-        
-        prompt = (
-            "You are an expert dental AI. Read the following clinical SOAP note and extract all "
-            "diagnosed conditions, existing restorations, and planned treatments into the exact JSON schema provided. "
-            "Only map conditions to specific teeth if they are explicitly mentioned.\n\n"
-            f"Clinical Note:\n{note_text}"
-        )
-        
-        message = HumanMessage(content=prompt)
-        result = structured_llm.invoke([message])
-        
-        return {"status": "success", "data": result.model_dump(mode='json')}
-        
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    @tool
+    def analyze_dental_chart(file_path: str) -> dict:
+        """
+        Parses a patient's dental chart file (PDF, Image, Text, Excel) and extracts the structured dental records.
+        Provide the absolute file path to the document to be analyzed.
+        """
+        try:
+            # 1. Parse the document based on its extension
+            parsed_data = parse_document(file_path)
+            
+            # 2. Bind the injected LLM to your Pydantic schema
+            structured_llm = llm.with_structured_output(Chart)
+            
+            prompt_text = "Extract the patient dental chart data from the provided document. Follow the exact JSON schema."
+            
+            # 3. Build the multimodal or text message
+            if parsed_data["type"] == "text":
+                message = HumanMessage(content=f"{prompt_text}\n\nDocument Content:\n{parsed_data['content']}")
+                
+            elif parsed_data["type"] == "image":
+                content_parts = [{"type": "text", "text": prompt_text}]
+                for base64_img in parsed_data["content"]:
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{base64_img}"}
+                    })
+                message = HumanMessage(content=content_parts)
+            else:
+                return {"error": "Invalid parsed data type."}
+
+            # 4. Invoke the LLM
+            result = structured_llm.invoke([message])
+            
+            # 5. Return the clean dictionary (Pydantic V2 syntax)
+            return {"status": "success", "data": result.model_dump(mode="json")}
+
+        except Exception as e:
+            # Returning the error ensures the LangGraph agent doesn't crash, 
+            # but instead sees the error and can tell the user what went wrong.
+            return {"status": "error", "message": str(e)}
+            
+    return analyze_dental_chart
+
+
+def create_extract_chart_tool(llm):
+    """Factory function to inject the LLM into the extract_chart_from_note tool."""
+    
+    @tool
+    def extract_chart_from_note(note_text: str) -> dict:
+        """
+        Extracts structured dental chart data (teeth conditions, surfaces, notes) from a clinical free-text SOAP note.
+        Provide the full text of the clinical note.
+        """
+        try:
+            # Bind the injected LLM to your Pydantic schema
+            structured_llm = llm.with_structured_output(Chart)
+            
+            prompt = (
+                "You are an expert dental AI. Read the following clinical SOAP note and extract all "
+                "diagnosed conditions, existing restorations, and planned treatments into the exact JSON schema provided. "
+                "Only map conditions to specific teeth if they are explicitly mentioned.\n\n"
+                f"Clinical Note:\n{note_text}"
+            )
+            
+            message = HumanMessage(content=prompt)
+            result = structured_llm.invoke([message])
+            
+            return {"status": "success", "data": result.model_dump(mode='json')}
+            
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    return extract_chart_from_note

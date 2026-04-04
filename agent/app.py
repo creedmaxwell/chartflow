@@ -1,23 +1,39 @@
 import os
 import tempfile
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 # Import the standalone tools for programmatic extraction
-from tools.chart_parser import analyze_dental_chart, extract_chart_from_note
+from tools.chart_parser import create_analyze_chart_tool, create_extract_chart_tool
+from tools.note_generator import create_note_generator_tool
 # Import the conversational agent orchestrator
 from agent import build_agent 
+
+from deepgram import DeepgramClient
 
 load_dotenv()
 
 app = FastAPI()
 
-# Compile the agent once on startup
-dental_agent = build_agent()
+# ================= 1. INITIALIZE SHARED LLM & TOOLS =================
+api_key = os.getenv("GEMINI_API_KEY")
+gemini_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key, temperature=0)
+
+analyze_dental_chart = create_analyze_chart_tool(gemini_llm)
+extract_chart_from_note = create_extract_chart_tool(gemini_llm)
+note_generator = create_note_generator_tool(gemini_llm)
+
+tools_list = [analyze_dental_chart, extract_chart_from_note, note_generator]
+
+# ================= 2. COMPILE AGENT =================
+# We hand the initialized LLM and tools to the agent
+dental_agent = build_agent(gemini_llm, tools_list)
 
 # ================= CORS CONFIGURATION =================
 app.add_middleware(
@@ -32,6 +48,11 @@ app.add_middleware(
 supabase_url = os.environ.get("SUPABASE_URL")
 supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(supabase_url or "", supabase_key or "")
+
+# ================== DEEPGRAM =================
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+
+deepgram_client = DeepgramClient(api_key=DEEPGRAM_API_KEY)
 
 # ================= MODELS =================
 class ChartProcessRequest(BaseModel):
@@ -49,6 +70,35 @@ class ChatRequest(BaseModel):
     thread_id: str
 
 # ================= ENDPOINTS =================
+
+@app.post("/api/process-transcript")
+async def process_transcription(audio_file: UploadFile = File(...)):
+    try:
+        buffer_data = await audio_file.read()
+
+        response = deepgram_client.listen.v1.media.transcribe_file(
+            request=buffer_data,        #audio_file.read(),
+            model="nova-3-medical",
+            language="en",
+            smart_format=True,
+            redact=["pii"],
+            filler_words=True,
+        )
+
+        transcript_text = response.results.channels[0].alternatives[0].transcript
+
+        structured_note = note_generator.invoke({"transcription": transcript_text})
+
+        return {
+            "status": "success", 
+            "raw_transcript": transcript_text,
+            "structured_note": structured_note
+        }
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process audio")
+
 
 @app.post("/api/process-chart")
 async def process_chart(request: ChartProcessRequest):

@@ -6,3 +6,5 @@ uvicorn
 supabase
 pandas
 pymupdf
+deepgram-sdk
+python-multipart

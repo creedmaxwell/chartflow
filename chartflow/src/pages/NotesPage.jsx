@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import supabase from '../lib/supabase';
 import FileUpload from '../components/file_upload/FileUpload';
+import AudioInputHandler from '../components/audio/AudioInputHandler';
 
 function CustomDateSelector({ value, onChange }) {
     const parseDate = () => {
@@ -418,6 +419,55 @@ export default function NotesPage() {
         setCurrentNote({ ...note });
     };
 
+    const handleAudioSubmit = async (audioData, filename) => {
+        if (!currentNote) {
+            alert("Please select or create a note first before submitting audio.");
+            return;
+        }
+
+        setIsProcessingAudio(true);
+        setToastMessage('');
+
+        const formData = new FormData();
+        formData.append('audio_file', audioData, filename);
+
+        try {
+            const response = await fetch('http://localhost:8000/api/process-transcript', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+            
+            if (data.status === "success" && data.structured_note) {
+                // We map the LangGraph JSON directly into our UI state!
+                setCurrentNote(prev => ({
+                    ...prev,
+                    chiefComplaint: data.structured_note.chief_complaint || prev.chiefComplaint,
+                    patient_history: data.structured_note.patient_history || prev.patient_history,
+                    subjective: data.structured_note.subjective || prev.subjective,
+                    objective: data.structured_note.objective || prev.objective,
+                    assessment: data.structured_note.assessment || prev.assessment,
+                    plan: data.structured_note.plan || prev.plan,
+                    additional_notes: data.structured_note.additional_notes || prev.additional_notes,
+                }));
+                
+                setToastType('success');
+                setToastMessage('Note successfully populated from audio!');
+                setTimeout(() => setToastMessage(''), 5000);
+            } else {
+                throw new Error(data.detail || "Error processing audio");
+            }
+        } catch (error) {
+            console.error("Transcription error:", error);
+            setToastType('error');
+            setToastMessage('Failed to transcribe audio. Please try again.');
+            setTimeout(() => setToastMessage(''), 5000);
+        } finally {
+            setIsProcessingAudio(false);
+        }
+    };
+
     const createNewNote = async () => {
         if (!patientName.trim()) {
             alert("Please enter a patient name.")
@@ -702,7 +752,9 @@ export default function NotesPage() {
                 {/* Transcribe Block */}
                 <div className='bg-white rounded-lg shadow-sm p-6 mb-6 transition-all duration-300'>
                     <h1 className="text-3xl font-bold text-gray-900">Transcribe</h1>
-                    <p className="text-gray-600 mt-1">Upload an audio</p>
+                    <p className="text-gray-600 mt-1">
+                        {!currentNote ? "Select or create a note first to begin dictation." : "Upload an audio file or record dictation."}
+                    </p>
                     
                     {isProcessingAudio ? (
                         <div className="mt-6 border-2 border-blue-200 border-dashed bg-blue-50 rounded-lg p-10 flex flex-col items-center justify-center">
@@ -717,22 +769,11 @@ export default function NotesPage() {
                             </button>
                         </div>
                     ) : (
-                        <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
-                            <FileUpload
-                                elementId={currentNote?.id || null}
-                                userId={user?.id}
-                                entityName="note"
-                                bucketName="note-uploads"
-                                dbTableName='audio_uploads'
-                                dbColumnName="note_id"
-                                acceptedTypes={{
-                                    'audio/*': ['.mp3', '.wav', '.m4a'],
-                                    'text/plain': ['.txt']
-                                }}
-                                acceptedTypesLabel="MP3, WAV, M4A, TXT"
-                                onUploadComplete={() => {
-                                    setIsProcessingAudio(true);
-                                }}
+                        <div className='bg-gray-100 mt-6 rounded-md'>
+                            {/* Pass our new function down to the component */}
+                            <AudioInputHandler 
+                                onAudioSubmit={handleAudioSubmit} 
+                                disabled={!currentNote} 
                             />
                         </div>
                     )}
