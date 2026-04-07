@@ -8,3 +8,6 @@ pandas
 pymupdf
 deepgram-sdk
 python-multipart
+spacy
+presidio_analyzer
+presidio_anonymizer

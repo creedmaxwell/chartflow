@@ -968,10 +968,10 @@ function ChartsPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right flex justify-end gap-3">
                                                 <button onClick={() => handleSetCurrentChart(chart)} className="text-gray-500 hover:text-blue-600" title="Edit">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </button>
                                                 <button onClick={() => deleteChart(chart.id)} className="text-red-500 hover:text-red-700" title="Delete">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                 </button>
                                             </td>
                                         </tr>
@@ -982,19 +982,21 @@ function ChartsPage() {
                     )}
                 </div>
 
-                {/* Import */}
-                <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
-                    <h1 className="text-3xl font-bold text-gray-900">Import</h1>
-                    <p className="text-gray-600 mt-1">Upload a chart</p>
-                    <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
-                        <FileUpload
-                            elementId={currentChart?.id}
-                            onUploadComplete={handleUploadComplete}
-                        />
-                    </div>
-                </div>
                 {currentChart ? (
                     <div>
+                        <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
+                            <h1 className="text-3xl font-bold text-gray-900">Import</h1>
+                            <p className="text-gray-600 mt-1">
+                                Upload a chart document for <span className="font-semibold">{currentChart.patient_name || 'this patient'}</span>
+                            </p>
+                            <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
+                                <FileUpload
+                                    elementId={currentChart.id}
+                                    onUploadComplete={handleUploadComplete}
+                                />
+                            </div>
+                        </div>
+
                         <div className='bg-white rounded-lg shadow p-4 mb-4'>
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                                 <div>
@@ -1028,10 +1030,12 @@ function ChartsPage() {
                     </div>
                 ) : (
                     <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 mb-6">
-                        <p>Select or create a new chart</p>
+                        <p className="text-lg font-medium text-gray-600 mb-2">No Chart Selected</p>
+                        <p>Select a patient from the table above or create a new chart to begin importing files and charting.</p>
                     </div>
                 )}
             </div>
+            
             {/* Note Selection Modal */}
             {isNoteModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

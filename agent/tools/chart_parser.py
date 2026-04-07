@@ -9,6 +9,9 @@ from typing_extensions import Self
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
+
 # ====================================== SCHEMAS ======================================
 
 ConditionType = Literal[
@@ -77,6 +80,21 @@ class Chart(BaseModel):
 
 # ====================================== PREPROCESSING ======================================
 
+analyzer = AnalyzerEngine()
+anonymizer = AnonymizerEngine()
+
+def scrub_text(raw_text: str) -> str:
+    """Helper function to analyze and anonymize text."""
+    # analyze() finds the entities (names, dates, phones, etc.)
+    results = analyzer.analyze(text=raw_text, language='en')
+    
+    # anonymize() replaces them with placeholders (e.g., <PERSON>)
+    anonymized_result = anonymizer.anonymize(text=raw_text, analyzer_results=results)
+
+    #print(anonymized_result.text)
+    
+    return anonymized_result.text
+
 def encode_image_to_base64(image_bytes):
     return base64.b64encode(image_bytes).decode('utf-8')
 
@@ -87,12 +105,14 @@ def parse_document(file_path: str) -> dict:
     if ext in ['txt', 'json', 'xml', 'csv']:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        return {"type": "text", "content": content}
+        safe_content = scrub_text(content)
+        return {"type": "text", "content": safe_content}
 
     elif ext in ['xls', 'xlsx']:
         df = pd.read_excel(file_path)
         markdown_table = df.to_markdown(index=False)
-        return {"type": "text", "content": markdown_table}
+        safe_table = scrub_text(markdown_table)
+        return {"type": "text", "content": safe_table}
 
     elif ext in ['jpg', 'jpeg', 'png']:
         with open(file_path, "rb") as f:
@@ -100,14 +120,18 @@ def parse_document(file_path: str) -> dict:
         return {"type": "image", "content": [base64_img]}
 
     elif ext == 'pdf':
-        base64_pages = []
+        # ASSUMPTION: All PDFs are native digital text documents.
         pdf_document = fitz.open(file_path)
-        for page_num in range(len(pdf_document)):
-            page = pdf_document.load_page(page_num)
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            base64_pages.append(encode_image_to_base64(pix.tobytes("png")))
+        full_text = ""
+        
+        for page in pdf_document:
+            full_text += page.get_text() + "\n"
+            
         pdf_document.close()
-        return {"type": "image", "content": base64_pages}
+        
+        # Scrub the extracted text
+        safe_text = scrub_text(full_text)
+        return {"type": "text", "content": safe_text}
 
     else:
         raise ValueError(f"Unsupported file type: {ext}")
@@ -171,6 +195,9 @@ def create_extract_chart_tool(llm):
         Provide the full text of the clinical note.
         """
         try:
+            # Scrub the raw input text before the LLM sees it
+            safe_note_text = scrub_text(note_text)
+            
             # Bind the injected LLM to your Pydantic schema
             structured_llm = llm.with_structured_output(Chart)
             
@@ -178,7 +205,7 @@ def create_extract_chart_tool(llm):
                 "You are an expert dental AI. Read the following clinical SOAP note and extract all "
                 "diagnosed conditions, existing restorations, and planned treatments into the exact JSON schema provided. "
                 "Only map conditions to specific teeth if they are explicitly mentioned.\n\n"
-                f"Clinical Note:\n{note_text}"
+                f"Clinical Note:\n{safe_note_text}"
             )
             
             message = HumanMessage(content=prompt)
