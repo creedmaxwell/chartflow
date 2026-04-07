@@ -88,12 +88,29 @@ function FileUpload({
 
                 if (dbError) throw dbError;
 
-                // Replace optimistic entry with real record
+                // 4. Update UI to processing AND swap the tempId for the real database ID
+                const processingRecord = { ...uploadRecord, status: 'processing' };
                 setUploads(prev =>
-                    prev.map(u => u.id === tempId ? uploadRecord : u)
+                    prev.map(u => u.id === tempId ? processingRecord : u)
                 );
 
-                if (onUploadComplete) onUploadComplete(uploadRecord);
+                // AWAIT THE PARENT COMPONENT
+                if (onUploadComplete) {
+                    try {
+                        // This pauses execution here until your FastAPI backend is totally finished
+                        await onUploadComplete(uploadRecord);
+                        
+                        // If we get here, the Python agent succeeded! Update to green.
+                        setUploads(prev =>
+                            prev.map(u => u.id === uploadRecord.id ? { ...processingRecord, status: 'completed' } : u)
+                        );
+                    } catch (agentError) {
+                        // If the Python agent failed (caught the thrown error), update to red.
+                        setUploads(prev =>
+                            prev.map(u => u.id === uploadRecord.id ? { ...processingRecord, status: 'failed', error_message: agentError.message } : u)
+                        );
+                    }
+                }
 
             } catch (error) {
                 console.error('Upload error:', error);

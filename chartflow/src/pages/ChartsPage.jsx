@@ -894,6 +894,8 @@ function ChartsPage() {
     } catch (error) {
         console.error("Processing error:", error);
         alert("There was an error parsing the chart with the AI agent.");
+
+        throw error;
     }
 };
 
