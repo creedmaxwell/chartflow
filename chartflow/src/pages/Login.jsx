@@ -4,12 +4,13 @@ import supabase from '../lib/supabase';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [message, setMessage] = useState('');
 
   const handleSignUp = async () => {
-    if (!email || !password) {
+    if (!email || !password || !fullName.trim()) {
       setMessage('Please fill in all fields');
       return;
     }
@@ -28,7 +29,7 @@ export default function Login() {
         password,
         options: {
           data: {
-            full_name: email.split('@')[0] // Default name from email
+            full_name: fullName.trim()
           }
         }
       });
@@ -38,6 +39,7 @@ export default function Login() {
       setMessage('Success! Check your email for confirmation link.');
       setEmail('');
       setPassword('');
+      setFullName('');
     } catch (error) {
       setMessage('Error: ' + error.message);
     } finally {
@@ -99,6 +101,29 @@ export default function Login() {
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
+          
+          {/* 3. Conditionally render the Full Name input */}
+          {isSignUp && (
+            <div className="animate-fade-in-down">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                Full Name
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-4 flex items-center text-slate-400">
+                  <span className="material-symbols-outlined text-[20px]">badge</span>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Jane Smith"
+                  className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-primary/40 focus:bg-white transition-all outline-none"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
               Email Address
@@ -172,6 +197,9 @@ export default function Login() {
             onClick={() => {
               setIsSignUp(!isSignUp);
               setMessage('');
+              // Clear fields when toggling modes to prevent confusion
+              setFullName('');
+              setPassword('');
             }}
             className="text-xs font-bold text-slate-500 hover:text-primary transition-colors"
             disabled={loading}
