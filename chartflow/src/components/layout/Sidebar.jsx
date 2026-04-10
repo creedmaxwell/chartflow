@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-function Sidebar({ activePage, onPageChange }) {
+function Sidebar({ activePage, onPageChange, onSignOut }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
@@ -65,14 +65,18 @@ function Sidebar({ activePage, onPageChange }) {
         </nav>
 
         <div className="mt-auto flex flex-col gap-1 pt-6 border-t border-slate-200/30">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer">
+          <button className="flex items-center w-full gap-3 px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors">
             <span className="material-symbols-outlined text-[20px]">contact_support</span>
             <span className="text-xs font-label">Support</span>
-          </div>
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer">
+          </button>
+          
+          <button 
+            onClick={onSignOut}
+            className="flex items-center w-full text-left gap-3 px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 hover:text-red-600 transition-colors"
+          >
             <span className="material-symbols-outlined text-[20px]">logout</span>
             <span className="text-xs font-label">Log Out</span>
-          </div>
+          </button>
         </div>
       </aside>
     </>
