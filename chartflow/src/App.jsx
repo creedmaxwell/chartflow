@@ -51,23 +51,24 @@ function App() {
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardPage />;
+        // CRITICAL FIX: Passed onPageChange down so dashboard buttons work!
+        return <DashboardPage onPageChange={setCurrentPage} />;
       case 'notes':
         return <NotesPage />;
       case 'charts':
         return <ChartsPage />;
       default:
-        return <DashboardPage />;
+        return <DashboardPage onPageChange={setCurrentPage} />;
     }
   };
 
-  // Show loading screen while checking auth
+  // Show themed loading screen while checking auth
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⏳</div>
-          <p className="text-gray-600">Loading...</p>
+      <div className="flex items-center justify-center min-h-screen bg-surface text-on-surface">
+        <div className="text-center flex flex-col items-center">
+          <span className="material-symbols-outlined text-primary text-5xl animate-spin mb-4">progress_activity</span>
+          <p className="text-slate-500 font-bold tracking-widest uppercase text-sm">Authenticating...</p>
         </div>
       </div>
     );
@@ -80,7 +81,7 @@ function App() {
 
   // Show main app if authenticated
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="flex min-h-screen bg-surface text-on-surface font-body">
       {/* Sidebar - always visible on desktop, slide-out on mobile */}
       <Sidebar 
         activePage={currentPage} 
@@ -90,9 +91,9 @@ function App() {
       />
 
       {/* Main content area - takes up remaining space */}
-      <div className="flex-1 lg:ml-0">
-        {/* Extra padding on mobile to account for hamburger button */}
-        <div className="p-6 lg:p-8 pt-20 lg:pt-8">
+      {/* CRITICAL FIX: Changed lg:ml-0 to lg:ml-64 to offset the fixed sidebar */}
+      <div className="flex-1 lg:ml-0 w-full relative">
+        <div className="p-4 md:p-8 pt-20 lg:pt-8 w-full max-w-[1600px] mx-auto">
           {renderContent()}
         </div>
       </div>
