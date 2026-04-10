@@ -3,6 +3,17 @@ import supabase from '../lib/supabase';
 import FileUpload from '../components/file_upload/FileUpload';
 import AudioInputHandler from '../components/audio/AudioInputHandler';
 
+const formatPrettyDate = (dateString) => {
+    if (!dateString) return '';
+    // If it's an old chart that already has the "M/D/YYYY" string, just return it
+    if (dateString.includes('/')) return dateString;
+
+    // Convert "YYYY-MM-DD" or ISO strings to a local date object safely
+    // The 'T00:00:00' prevents timezone offset bugs where the day shifts backwards
+    const date = new Date(dateString.includes('T') ? dateString : `${dateString}T00:00:00`);
+    return date.toLocaleDateString('en-US'); // Forces M/D/YYYY format
+};
+
 function CustomDateSelector({ value, onChange }) {
     const parseDate = () => {
         if (value) {
@@ -121,112 +132,107 @@ function ReadOnlyNote({ note }) {
     );
 }
 
-function NoteEditor({ note, onChange }) {
+function NoteEditor({ note, onChange, onBack, onSave, onFinalize, onUnlock, onGenerateChart, isSaving, isGeneratingChart }) {
+    // Reusable Bento box component
+    const SoapBox = ({ title, icon, colorClass, placeholder, field }) => (
+        <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-lg ${colorClass} flex items-center justify-center`}>
+                    <span className="material-symbols-outlined">{icon}</span>
+                </div>
+                <h3 className="text-lg font-bold font-headline">{title}</h3>
+            </div>
+            <textarea
+                className="w-full bg-surface-container-highest border-none rounded-xl focus:ring-1 focus:ring-primary/40 transition-all text-sm py-3 px-4 min-h-[120px] resize-y"
+                placeholder={placeholder}
+                value={note[field] || ''}
+                onChange={(e) => onChange({ ...note, [field]: e.target.value })}
+                disabled={note.status === 'finalized'}
+            />
+        </article>
+    );
+
     return (
-        <div className="space-y-6">
-            <div className='flex justify-between w-full'>
-                <div className='flex-1 mr-4'>
-                    <label className='block text-sm font-medium text-gray-700 mb-2'>
-                        Patient Name
-                    </label>
-                    <input
-                        type="text"
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., John Doe"
-                        value={note.patientName || ''}
-                        onChange={(e) => onChange({ ...note, patientName: e.target.value })}
-                    />
+        <div className="space-y-6 pb-24">
+            {/* Header */}
+            <section className="flex justify-between items-center mb-8">
+                <div>
+                    <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-primary text-sm font-bold mb-4 transition-colors">
+                        <span className="material-symbols-outlined text-sm">arrow_back</span> Back to Notes
+                    </button>
+                    <div className="flex items-center gap-4">
+                        <input
+                            type="text"
+                            className="text-3xl font-extrabold tracking-tight text-on-surface bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 w-full"
+                            placeholder="Patient Name"
+                            value={note.patientName || ''}
+                            onChange={(e) => onChange({ ...note, patientName: e.target.value })}
+                            disabled={note.status === 'finalized'}
+                        />
+                    </div>
+                    <div className="mt-2 text-on-surface-variant flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">calendar_today</span>
+                        {note.status === 'finalized' ? (
+                            <span className="text-sm font-medium">{formatPrettyDate(note.date)}</span>
+                        ) : (
+                            <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })} />
+                        )}
+                    </div>
                 </div>
-                <div className='flex-1'>
-                    <label className='block text-sm font-medium text-gray-700 mb-2'>
-                        Date
-                    </label>
-                    <CustomDateSelector value={note.date} onChange={(date) => onChange({ ...note, date })} />
+            </section>
+
+            {/* Bento Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <SoapBox title="Chief Complaint" icon="record_voice_over" colorClass="bg-blue-50 text-blue-700" placeholder="Describe the reason for the visit..." field="chiefComplaint" />
+                <SoapBox title="Medical History" icon="history" colorClass="bg-slate-100 text-slate-700" placeholder="Preexisting conditions, drug allergies..." field="patient_history" />
+
+                <SoapBox title="Subjective (S)" icon="chat_bubble" colorClass="bg-blue-50 text-primary" placeholder="Patient's description of symptoms..." field="subjective" />
+                <SoapBox title="Objective (O)" icon="visibility" colorClass="bg-teal-50 text-teal-700" placeholder="Clinical findings, exam results..." field="objective" />
+
+                <SoapBox title="Assessment (A)" icon="psychology" colorClass="bg-amber-50 text-amber-700" placeholder="Diagnosis, interpretation..." field="assessment" />
+                <SoapBox title="Plan (P)" icon="assignment" colorClass="bg-primary-container/10 text-primary" placeholder="Treatment plan, next steps..." field="plan" />
+            </div>
+
+            <SoapBox title="Additional Notes" icon="note_add" colorClass="bg-slate-100 text-slate-600" placeholder="Any other remarks..." field="additional_notes" />
+
+            {/* Sticky Floating Action Bar */}
+            <div className="fixed bottom-6 right-8 left-72 z-40">
+                <div className="max-w-5xl mx-auto bg-white/85 backdrop-blur-md border border-white/40 shadow-2xl rounded-2xl py-4 px-8 flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className={`w-2 h-2 rounded-full ${note.status === 'finalized' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+                            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{note.status || 'Draft'}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <button onClick={onSave} disabled={isSaving} className="flex items-center gap-2 text-slate-600 hover:text-primary font-bold text-sm transition-colors">
+                            {isSaving ? 'Saving...' : 'Force Save'}
+                        </button>
+                        <div className="h-8 w-[1px] bg-slate-200"></div>
+
+                        {note.status === 'draft' ? (
+                            <button onClick={onFinalize} disabled={isSaving} className="bg-primary text-white font-black text-sm px-8 py-3 rounded-xl hover:bg-primary-container transition-all shadow-md active:scale-95">
+                                FINALIZE NOTE
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={onUnlock}
+                                    disabled={isSaving}
+                                    className="bg-white border border-slate-200 text-slate-700 font-bold text-sm px-6 py-3 rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">lock_open</span>
+                                    Unlock Note
+                                </button>
+                                <button onClick={onGenerateChart} disabled={isGeneratingChart || isSaving} className="bg-teal-600 text-white font-black text-sm px-8 py-3 rounded-xl hover:bg-teal-700 transition-all shadow-md active:scale-95">
+                                    {isGeneratingChart ? 'GENERATING...' : 'GENERATE CHART'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Chief Complaint
-                </label>
-                <input
-                    type="text"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Pain in lower right molar"
-                    value={note.chiefComplaint || ''}
-                    onChange={(e) => onChange({ ...note, chiefComplaint: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Medical History
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder="Preexisting conditions, previous work, drug allergies..."
-                    value={note.patient_history || ''}
-                    onChange={(e) => onChange({ ...note, patient_history: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subjective (S)
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder="Patient's description of symptoms, history..."
-                    value={note.subjective || ''}
-                    onChange={(e) => onChange({ ...note, subjective: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Objective (O)
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder="Clinical findings, exam results..."
-                    value={note.objective || ''}
-                    onChange={(e) => onChange({ ...note, objective: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assessment (A)
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder="Diagnosis, interpretation..."
-                    value={note.assessment || ''}
-                    onChange={(e) => onChange({ ...note, assessment: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Plan (P)
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder="Treatment plan, next steps..."
-                    value={note.plan || ''}
-                    onChange={(e) => onChange({ ...note, plan: e.target.value })}
-                />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Notes
-                </label>
-                <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24"
-                    placeholder='Any other remarks, patient preferences, follow-up instructions...'
-                    value={note.additional_notes || ''}
-                    onChange={(e) => onChange({ ...note, additional_notes: e.target.value })}
-                />
             </div>
         </div>
     );
@@ -238,10 +244,11 @@ export default function NotesPage() {
     const [user, setUser] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [patientName, setPatientName] = useState('');
+    // const [patientName, setPatientName] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
     const [isGeneratingChart, setIsGeneratingChart] = useState(false);
-    
+
     // UI STATES for audio processing and notifications
     const [isProcessingAudio, setIsProcessingAudio] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
@@ -264,14 +271,14 @@ export default function NotesPage() {
     // --- FAILSAFE TIMEOUT EFFECT ---
     useEffect(() => {
         let timeoutId;
-        
+
         // If the spinner is active, start a 2-minute countdown
         if (isProcessingAudio) {
             timeoutId = setTimeout(() => {
                 setIsProcessingAudio(false);
                 setToastType('error');
                 setToastMessage('Transcription took too long or failed. Please check your connection and try again.');
-                
+
                 // Auto-hide the error after 6 seconds
                 setTimeout(() => setToastMessage(''), 6000);
             }, 120000); // 120,000 ms = 2 minutes
@@ -295,11 +302,11 @@ export default function NotesPage() {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'notes',
-                    filter: `user_id=eq.${user.id}` 
+                    filter: `user_id=eq.${user.id}`
                 },
                 (payload) => {
                     console.log('Real-time new note detected:', payload);
-                    
+
                     loadNotes();
                 }
             )
@@ -312,18 +319,14 @@ export default function NotesPage() {
 
     // --- AUTOSAVE EFFECT ---
     useEffect(() => {
-        if (!currentNote || !currentNote.patientName?.trim()) return;
+        if (!currentNote) return;
 
         const debounceTimer = setTimeout(() => {
-            handleSaveNote(true); 
+            handleSaveNote(true);
         }, 1500);
 
         return () => clearTimeout(debounceTimer);
-    }, [currentNote]); 
-
-    const handlePatientNameChange = (event) => {
-        setPatientName(event.target.value);
-    };
+    }, [currentNote]);
 
     const loadNotes = async () => {
         try {
@@ -409,7 +412,7 @@ export default function NotesPage() {
             });
 
             const data = await response.json();
-            
+
             if (data.status === "success" && data.structured_note) {
                 const aiData = data.structured_note;
 
@@ -468,7 +471,7 @@ export default function NotesPage() {
                     setNotes(prev => [formattedNote, ...prev]);
                     setCurrentNote(formattedNote);
                 }
-                
+
                 setToastType('success');
                 setToastMessage('Note successfully generated from audio!');
                 setTimeout(() => setToastMessage(''), 5000);
@@ -486,10 +489,6 @@ export default function NotesPage() {
     };
 
     const createNewNote = async () => {
-        if (!patientName.trim()) {
-            alert("Please enter a patient name.")
-            return;
-        }
         try {
             setIsCreating(true);
             if (!user) return;
@@ -501,7 +500,7 @@ export default function NotesPage() {
                 .from('notes')
                 .insert([{
                     user_id: user.id,
-                    patient_name: patientName,
+                    patient_name: '',
                     date: dateString,
                     note_type: 'SOAP',
                     status: 'draft',
@@ -543,8 +542,8 @@ export default function NotesPage() {
     const handleSaveNote = async (isAutoSave = false) => {
         if (!user || !currentNote) return;
 
-        if (!currentNote.patientName?.trim()) {
-            if (!isAutoSave) alert('Please name a patient');
+        if (!currentNote.patientName?.trim() && !isAutoSave) {
+            alert('Please enter a patient name before saving');
             return;
         }
 
@@ -553,7 +552,7 @@ export default function NotesPage() {
             const { data, error } = await supabase
                 .from('notes')
                 .update({
-                    patient_name: currentNote.patientName,
+                    patient_name: currentNote.patientName || '',
                     date: currentNote.date,
                     chief_complaint: currentNote.chiefComplaint,
                     subjective: { text: currentNote.subjective },
@@ -681,8 +680,8 @@ export default function NotesPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 relative">
-            
+        <div className="min-h-screen bg-surface text-on-surface font-body relative">
+
             {/* Dynamic Global Toast Notification */}
             {toastMessage && (
                 <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 animate-fade-in-down text-white ${toastType === 'success' ? 'bg-gray-900' : 'bg-red-600'}`}>
@@ -694,187 +693,107 @@ export default function NotesPage() {
                 </div>
             )}
 
-            <div className="max-w-7xl mx-auto p-6">
-                {/* Header Block & Table */}
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                    <div className="flex justify-between items-center">
-                        <div className='flex'>
-                            <h1 className="text-3xl font-bold text-gray-900 mr-5">Notes</h1>
-                            <input
-                                type="text"
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Patient Name"
-                                value={patientName}
-                                onChange={handlePatientNameChange}
-                            />
-                        </div>
-                        <button
-                            onClick={createNewNote}
-                            disabled={isCreating}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-                        >
-                            {isCreating ? 'Creating...' : '+ New Note'}
-                        </button>
-                    </div>
+            <div className="p-8 max-w-7xl mx-auto">
+                {currentNote ? (
+                    // --- EDITOR VIEW ---
+                    <NoteEditor
+                        note={currentNote}
+                        onChange={setCurrentNote}
+                        onBack={() => setCurrentNote(null)}
+                        onSave={() => handleSaveNote(false)}
+                        onFinalize={() => handleStatusChange(currentNote.id, 'finalized')}
+                        onUnlock={() => handleStatusChange(currentNote.id, 'draft')}
+                        onGenerateChart={handleGenerateChart}
+                        isSaving={isSaving}
+                        isGeneratingChart={isGeneratingChart}
+                    />
+                ) : (
+                    // --- LIST / DASHBOARD VIEW ---
+                    <div className="grid grid-cols-12 gap-6">
 
-                    {/* Notes Selector Table */}
-                    {notes.length > 0 && (
-                        <div className="mt-4 overflow-x-auto border border-gray-200 rounded-lg">
-                            <table className="w-full text-sm text-left text-gray-600">
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        <th scope="col" className="px-6 py-4 font-semibold">Date</th>
-                                        <th scope="col" className="px-6 py-4 font-semibold">Note Type</th>
-                                        <th scope="col" className="px-6 py-4 font-semibold">Patient</th>
-                                        <th scope="col" className="px-6 py-4 font-semibold">Status</th>
-                                        <th scope="col" className="px-6 py-4 font-semibold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {notes
-                                        .filter(note => {
-                                            const searchTerm = patientName.trim().toLowerCase();
+                        {/* Left: Notes Table */}
+                        <section className="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-1 shadow-sm border border-slate-100">
+                            <div className="px-6 py-5 flex justify-between items-center">
+                                <h3 className="text-base font-bold font-headline text-slate-900 tracking-tight">Recent Clinical Notes</h3>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Search patients..."
+                                        className="text-sm px-3 py-1.5 bg-surface-container-low border-none rounded-lg focus:ring-1 focus:ring-primary"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                    <button onClick={createNewNote} disabled={isCreating} className="px-4 py-1.5 text-xs font-bold text-white bg-primary rounded-lg hover:bg-primary-container transition-colors">
+                                        {isCreating ? '...' : '+ New'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="w-full overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-surface-container-low/50">
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {notes.filter(note => {
+                                            const searchTerm = searchQuery.trim().toLowerCase();
                                             if (!searchTerm) return true;
-                                            const currentName = (note.patient_name || '').toLowerCase();
-                                            return currentName.includes(searchTerm);
-                                        })
-                                        .map(note => (
-                                            <tr key={note.id} className="bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">{note.date}</td>
-                                                <td className="px-6 py-4">{note.note_type}</td>
-                                                <td className="px-6 py-4 font-medium text-gray-900">{note.patient_name}</td>
+                                            return (note.patient_name || '').toLowerCase().includes(searchTerm);
+                                        }).map(note => (
+                                            <tr key={note.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => handleSetCurrentNote(note)}>
                                                 <td className="px-6 py-4">
-                                                    <label
-                                                        className={`text-xs font-medium px-2.5 py-1 rounded-md ${note.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}
-                                                    >
-                                                        {note.status || 'Draft'}
-                                                    </label>
+                                                    <div className="text-sm font-semibold text-slate-900">{formatPrettyDate(note.date)}</div>
+                                                    <div className="text-xs text-slate-500">{note.note_type}</div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right flex justify-end gap-3">
-                                                    <button onClick={() => handleSetCurrentNote(note)} className="text-gray-500 hover:text-blue-600" title="Edit">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                                    </button>
-                                                    <button onClick={() => deleteNote(note.id)} className="text-red-500 hover:text-red-700" title="Delete">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm font-semibold text-slate-800">{note.patient_name || 'Unnamed'}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${note.status === 'draft' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {note.status || 'Draft'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }} className="text-slate-400 hover:text-error transition-colors p-2">
+                                                        <span className="material-symbols-outlined text-lg">delete</span>
                                                     </button>
                                                 </td>
                                             </tr>
                                         ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                {/* Transcribe Block */}
-                <div className='bg-white rounded-lg shadow-sm p-6 mb-6 transition-all duration-300'>
-                    <h1 className="text-3xl font-bold text-gray-900">Transcribe</h1>
-                    <p className="text-gray-600 mt-1">
-                        Upload an audio file or record dictation to automatically create a note.
-                    </p>
-                    
-                    {isProcessingAudio ? (
-                        <div className="mt-6 border-2 border-blue-200 border-dashed bg-blue-50 rounded-lg p-10 flex flex-col items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                            <p className="text-blue-800 font-semibold text-lg">AI is generating your note...</p>
-                            <p className="text-blue-600 text-sm mt-1">This usually takes about a minute depending on the audio length.</p>
-                            <button 
-                                onClick={() => setIsProcessingAudio(false)}
-                                className="mt-4 text-sm text-blue-500 hover:text-blue-700 underline"
-                            >
-                                Cancel Waiting
-                            </button>
-                        </div>
-                    ) : (
-                        <div className='bg-gray-100 mt-6 rounded-md'>
-                            {/* The handler is now permanently enabled */}
-                            <AudioInputHandler onAudioSubmit={handleAudioSubmit} />
-                        </div>
-                    )}
-                </div>
-
-                {/* Editor Container */}
-                {currentNote ? (
-                    <div>
-                        <h1 className='text-4xl mb-6 mt-12 font-bold'>Note Editor</h1>
-                        <div className='bg-white rounded-lg shadow p-4 mb-4'>
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-800">
-                                        {currentNote.patientName || 'Unknown Patient'}
-                                    </h2>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Note ID: #{currentNote.id.slice(0, 8)}
-                                    </p>
-                                </div>
-                                <div className="mt-2 md:mt-0 flex items-center">
-                                    <label
-                                        className={`text-sm font-medium px-2.5 py-1 rounded-md mr-6 ${currentNote.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}
-                                    >
-                                        {currentNote.status || 'Draft'}
-                                    </label>
-                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700 mr-6">
-                                        <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                        {currentNote.date}
-                                    </span>
-                                </div>
+                                    </tbody>
+                                </table>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="bg-white rounded-lg shadow-sm p-6">
-                            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                                <h2 className="text-xl font-semibold text-gray-800">
-                                    {currentNote.status === 'finalized' ? 'Clinical Note' : 'Edit Note'}
-                                </h2>
-
-                                <div className="flex items-center gap-4">
-                                    {currentNote.status === 'draft' && isSaving && <span className="text-sm text-gray-500">Saving...</span>}
-                                    {currentNote.status === 'draft' && showSuccess && <span className="text-sm text-green-600">Saved successfully</span>}
-
-                                    {currentNote.status === 'finalized' && (
-                                        <button
-                                            onClick={() => handleStatusChange(currentNote.id, 'draft')}
-                                            className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                                        >
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                                            Unlock for Editing
-                                        </button>
-                                    )}
+                        {/* Right: Audio Transcriber */}
+                        <aside className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+                            <div className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3">
+                                    <span className="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider">AI Powered</span>
                                 </div>
-                            </div>
+                                <h3 className="text-base font-bold font-headline text-slate-900 mb-2">Transcribe Visit</h3>
+                                <p className="text-sm text-slate-500 mb-6 font-label leading-relaxed">Upload audio from patient encounter for automated clinical note generation.</p>
 
-                            {currentNote.status === 'finalized' ? (
-                                <ReadOnlyNote note={currentNote} />
-                            ) : (
-                                <NoteEditor note={currentNote} onChange={setCurrentNote} />
-                            )}
-
-                            <div className="mt-8 pt-6 border-t border-gray-200">
-                                {currentNote.status === 'finalized' ? (
-                                    <button
-                                        onClick={handleGenerateChart}
-                                        disabled={isGeneratingChart || isSaving}
-                                        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
-                                    >
-                                        {isGeneratingChart ? 'Generating Chart...' : 'Generate Chart'}
-                                    </button>
+                                {isProcessingAudio ? (
+                                    <div className="border-2 border-dashed border-primary/30 bg-primary/5 rounded-xl p-8 flex flex-col items-center justify-center text-center">
+                                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+                                        <span className="text-sm font-bold text-slate-900">AI is analyzing audio...</span>
+                                        <span className="text-xs text-slate-500 mt-1">Generating SOAP note</span>
+                                    </div>
                                 ) : (
-                                    <button
-                                        onClick={() => handleStatusChange(currentNote.id, 'finalized')}
-                                        disabled={isSaving}
-                                        className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50"
-                                    >
-                                        {isSaving ? 'Saving...' : 'Finalize Note'}
-                                    </button>
+                                    // I left this as a wrapper so your AudioInputHandler component handles the actual drop logic
+                                    <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                                        <AudioInputHandler onAudioSubmit={handleAudioSubmit} />
+                                    </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 mb-6">
-                        <p>Select or create a new note</p>
+                        </aside>
+
                     </div>
                 )}
             </div>

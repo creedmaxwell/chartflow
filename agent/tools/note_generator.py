@@ -3,11 +3,6 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from typing import TypedDict
 
-# take in appointment transcription
-# generate summarized note, outputted into particular fields for UI
-# INPUT: transcription: str
-# OUTPUT: {"chief_complaint": "Tooth hurt", "subjective": "yuh", etc....}
-
 class Note(TypedDict):
     chief_complaint: str
     patient_history: str

@@ -3,6 +3,17 @@ import supabase from '../lib/supabase';
 import Odontogram from 'react-odontogram';
 import FileUpload from '../components/file_upload/FileUpload';
 
+const formatPrettyDate = (dateString) => {
+    if (!dateString) return '';
+    // If it's an old chart that already has the "M/D/YYYY" string, just return it
+    if (dateString.includes('/')) return dateString;
+    
+    // Convert "YYYY-MM-DD" or ISO strings to a local date object safely
+    // The 'T00:00:00' prevents timezone offset bugs where the day shifts backwards
+    const date = new Date(dateString.includes('T') ? dateString : `${dateString}T00:00:00`);
+    return date.toLocaleDateString('en-US'); // Forces M/D/YYYY format
+};
+
 export const universalToFdi = {
     // Top Right (Universal 1-8 -> FDI 18-11)
     1: 18, 2: 17, 3: 16, 4: 15, 5: 14, 6: 13, 7: 12, 8: 11,
@@ -14,7 +25,6 @@ export const universalToFdi = {
     25: 41, 26: 42, 27: 43, 28: 44, 29: 45, 30: 46, 31: 47, 32: 48
 };
 
-// Map FDI (React UI) -> Universal (Database)
 export const fdiToUniversal = Object.fromEntries(
     Object.entries(universalToFdi).map(([universal, fdi]) => [fdi, universal])
 );
@@ -34,14 +44,13 @@ const DENTAL_COLORS = {
     extraction_planned: { bg: 'bg-red-300', text: 'text-red-900', border: 'border-red-300', light: 'bg-red-50', lightText: 'text-red-700' },
 };
 
-// Get color classes for a condition
 const getConditionColors = (condition) => {
     return DENTAL_COLORS[condition] || {
-        bg: 'bg-gray-500',
+        bg: 'bg-slate-500',
         text: 'text-white',
-        border: 'border-gray-500',
-        light: 'bg-gray-100',
-        lightText: 'text-gray-800'
+        border: 'border-slate-500',
+        light: 'bg-slate-100',
+        lightText: 'text-slate-800'
     };
 };
 
@@ -59,14 +68,12 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
         const priority = ['missing', 'fracture', 'cavity', 'root_canal', 'crown', 'filling', 'bridge', 'implant', 'sealant', 'watch', 'extraction_planned'];
 
-        // Check whole-tooth conditions first
         for (const condition of priority) {
             if (data.conditions?.includes(condition)) {
                 return getConditionHexColor(condition);
             }
         }
 
-        // Check if any surface has a condition
         if (data.surfaces) {
             for (const surface of Object.values(data.surfaces)) {
                 if (surface?.condition) {
@@ -95,27 +102,18 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
         return colorMap[condition] || '#ffffff';
     };
 
-    // Inject dynamic styles for tooth colors whenever chartData changes
     useEffect(() => {
         const styleId = 'dynamic-tooth-colors';
-
-        // Remove existing style element if it exists
         const existingStyle = document.getElementById(styleId);
-        if (existingStyle) {
-            existingStyle.remove();
-        }
+        if (existingStyle) existingStyle.remove();
 
-        // Generate CSS for all teeth with conditions
         const styles = Object.keys(chartData)
             .map(toothId => {
                 const color = getToothColor(toothId);
-                return `.Odontogram .${toothId} path[fill="currentColor"] {
-                    fill: ${color};
-                }`;
+                return `.Odontogram .${toothId} path[fill="currentColor"] { fill: ${color}; }`;
             })
             .join('\n');
 
-        // Create and inject style tag
         if (styles) {
             const styleTag = document.createElement('style');
             styleTag.id = styleId;
@@ -123,30 +121,19 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             document.head.appendChild(styleTag);
         }
 
-        // Cleanup on unmount
         return () => {
             const styleToRemove = document.getElementById(styleId);
-            if (styleToRemove) {
-                styleToRemove.remove();
-            }
+            if (styleToRemove) styleToRemove.remove();
         };
     }, [chartData]);
 
-    // Load chart data when chartId changes
     useEffect(() => {
-        if (chartId) {
-            loadChartData(chartId);
-        }
+        if (chartId) loadChartData(chartId);
     }, [chartId, refreshTrigger]);
 
-    // Auto-save chart data after 1 second of inactivity
     useEffect(() => {
         if (!chartId) return;
-
-        const timeoutId = setTimeout(() => {
-            saveChartData();
-        }, 1000);
-
+        const timeoutId = setTimeout(() => saveChartData(), 1000);
         return () => clearTimeout(timeoutId);
     }, [chartData]);
 
@@ -160,14 +147,10 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             if (error) throw error;
 
             const loadedData = {};
-
             data.forEach(tooth => {
                 const universalNum = parseInt(tooth.tooth_id.replace('teeth-', ''));
-
                 const fdiNum = universalToFdi[universalNum];
-
                 const uiKey = `teeth-${fdiNum}`;
-
                 loadedData[uiKey] = {
                     surfaces: tooth.surfaces || {},
                     conditions: tooth.conditions || [],
@@ -190,34 +173,25 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             setIsSaving(true);
             setSaveStatus('Saving...');
 
-            // 1. Translate FDI keys back to Universal for saving
             const teethToSave = Object.entries(chartData).map(([fdiKey, data]) => {
-                // fdiKey looks like "teeth-26"
                 const fdiNum = parseInt(fdiKey.replace('teeth-', ''));
                 const universalNum = fdiToUniversal[fdiNum];
-                
                 return {
                     chart_id: chartId,
-                    tooth_id: `teeth-${universalNum}`, // Send "teeth-14" to the DB
+                    tooth_id: `teeth-${universalNum}`,
                     surfaces: data.surfaces || {},
                     conditions: data.conditions || [],
                     notes: data.notes || ''
                 };
             });
 
-            // 2. Translate the keys for the deletion check so Supabase knows what to keep
             const universalKeysToKeep = Object.keys(chartData).map(fdiKey => {
                 const fdiNum = parseInt(fdiKey.replace('teeth-', ''));
                 const universalNum = fdiToUniversal[fdiNum];
                 return `teeth-${universalNum}`;
             });
 
-            // 3. Safely delete removed teeth using the Universal keys
-            let deleteQuery = supabase
-                .from('chart_teeth')
-                .delete()
-                .eq('chart_id', chartId);
-
+            let deleteQuery = supabase.from('chart_teeth').delete().eq('chart_id', chartId);
             if (universalKeysToKeep.length > 0) {
                 deleteQuery = deleteQuery.not('tooth_id', 'in', `(${universalKeysToKeep.join(',')})`);
             }
@@ -225,15 +199,11 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             const { error: deleteError } = await deleteQuery;
             if (deleteError) throw deleteError;
 
-            // 4. Upsert the translated data
             if (teethToSave.length > 0) {
-                const { error: upsertError } = await supabase
-                    .from('chart_teeth')
-                    .upsert(teethToSave, {
-                        onConflict: 'chart_id,tooth_id',
-                        ignoreDuplicates: false
-                    });
-
+                const { error: upsertError } = await supabase.from('chart_teeth').upsert(teethToSave, {
+                    onConflict: 'chart_id,tooth_id',
+                    ignoreDuplicates: false
+                });
                 if (upsertError) throw upsertError;
             }
 
@@ -246,7 +216,6 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
             setSaveStatus('Saved');
             if (onChartSaved) onChartSaved();
-
             setTimeout(() => setSaveStatus(''), 2000);
         } catch (error) {
             console.error('Error saving chart:', error);
@@ -261,9 +230,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
         return acc;
     }, {});
 
-    const handleToothClick = (selectedTeethObj) => {
-        setSelectedTeeth(selectedTeethObj);
-    };
+    const handleToothClick = (selectedTeethObj) => setSelectedTeeth(selectedTeethObj);
 
     const handleClearSelection = () => {
         setSelectedTeeth([]);
@@ -272,55 +239,37 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
     const handleSurfaceClick = (surface) => {
         if (selectedTeeth.length === 0) return;
-
         setChartData(prev => {
             const updated = { ...prev };
-
             selectedTeeth.forEach(tooth => {
                 const currentSurface = updated[tooth.id]?.surfaces?.[surface];
-
-                // Toggle: if surface already has the active condition, remove it
                 if (currentSurface?.condition === activeCondition) {
                     const { [surface]: removed, ...remainingSurfaces } = updated[tooth.id]?.surfaces || {};
-                    updated[tooth.id] = {
-                        ...updated[tooth.id],
-                        surfaces: remainingSurfaces
-                    };
+                    updated[tooth.id] = { ...updated[tooth.id], surfaces: remainingSurfaces };
                 } else {
-                    // Add or update surface with new condition
                     updated[tooth.id] = {
                         ...updated[tooth.id],
                         surfaces: {
                             ...updated[tooth.id]?.surfaces,
-                            [surface]: {
-                                condition: activeCondition,
-                                date: new Date().toISOString()
-                            }
+                            [surface]: { condition: activeCondition, date: new Date().toISOString() }
                         }
                     };
                 }
             });
-
             return updated;
         });
     };
 
     const handleAddCondition = (condition) => {
         if (selectedTeeth.length === 0) return;
-
         setChartData(prev => {
             const updated = { ...prev };
-
             selectedTeeth.forEach((tooth) => {
                 const existingConditions = updated[tooth.id]?.conditions || [];
                 if (!existingConditions.includes(condition)) {
-                    updated[tooth.id] = {
-                        ...updated[tooth.id],
-                        conditions: [...existingConditions, condition]
-                    };
+                    updated[tooth.id] = { ...updated[tooth.id], conditions: [...existingConditions, condition] };
                 }
             });
-
             return updated;
         });
     };
@@ -338,55 +287,49 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
     const handleNotesChange = (toothId, notes) => {
         setChartData(prev => ({
             ...prev,
-            [toothId]: {
-                ...prev[toothId],
-                notes
-            }
+            [toothId]: { ...prev[toothId], notes }
         }));
     };
 
     const conditionOptions = [
-        { value: 'cavity', label: 'Cavity'},
-        { value: 'filling', label: 'Filling'},
-        { value: 'crown', label: 'Crown'},
-        { value: 'root_canal', label: 'Root Canal'},
-        { value: 'missing', label: 'Missing'},
-        { value: 'implant', label: 'Implant'},
-        { value: 'bridge', label: 'Bridge'},
-        { value: 'sealant', label: 'Sealant'},
-        { value: 'watch', label: 'Watch'},
-        { value: 'fracture', label: 'Fracture'},
+        { value: 'cavity', label: 'Cavity'}, { value: 'filling', label: 'Filling'},
+        { value: 'crown', label: 'Crown'}, { value: 'root_canal', label: 'Root Canal'},
+        { value: 'missing', label: 'Missing'}, { value: 'implant', label: 'Implant'},
+        { value: 'bridge', label: 'Bridge'}, { value: 'sealant', label: 'Sealant'},
+        { value: 'watch', label: 'Watch'}, { value: 'fracture', label: 'Fracture'},
         { value: 'extraction_planned', label: 'Extract Plan'},
     ];
 
     return (
-        <div>
-            {/* Toolbar */}
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
-                <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-lg font-semibold">Charting Tools</h2>
+        <div className="space-y-6">
+            {/* Toolbar Bento Box */}
+            <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-primary">
+                            <span className="material-symbols-outlined">build</span>
+                        </div>
+                        <h2 className="text-lg font-bold font-headline">Charting Tools</h2>
+                    </div>
                     {saveStatus && (
-                        <span className={`text-sm font-medium ${saveStatus === 'Saved' ? 'text-green-600' :
-                            saveStatus.includes('Error') ? 'text-red-600' :
-                                'text-blue-600'
-                            }`}>
-                            {saveStatus}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${saveStatus === 'Saved' ? 'bg-green-500' : saveStatus.includes('Error') ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{saveStatus}</span>
+                        </div>
                     )}
                 </div>
 
-                {/* Color-coded condition buttons */}
-                <div className="flex gap-2 flex-wrap justify-center">
+                <div className="flex gap-2 flex-wrap justify-center mb-6">
                     {conditionOptions.map(option => {
                         const colors = getConditionColors(option.value);
                         return (
                             <button
                                 key={option.value}
                                 onClick={() => setActiveCondition(option.value)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all ${activeCondition === option.value
-                                    ? `${colors.bg} ${colors.text} ring-2 ring-offset-2 ${colors.border}`
-                                    : `${colors.light} ${colors.lightText} hover:ring-2 ${colors.border}`
-                                    }`}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeCondition === option.value
+                                    ? `${colors.bg} ${colors.text} shadow-md`
+                                    : `${colors.light} ${colors.lightText} hover:opacity-80`
+                                }`}
                             >
                                 {option.label}
                             </button>
@@ -394,51 +337,31 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                     })}
                 </div>
 
-                {/* Selection indicator */}
                 {selectedTeeth.length > 0 && (
-                    <div className="mt-3 p-2 bg-blue-50 rounded">
-                        <span className="text-sm font-medium">
+                    <div className="flex items-center justify-center gap-4 py-3 bg-primary/5 rounded-xl border border-primary/10">
+                        <span className="text-sm font-bold text-primary">
                             {selectedTeeth.length} {selectedTeeth.length === 1 ? 'tooth' : 'teeth'} selected
                         </span>
-                        <button
-                            onClick={handleClearSelection}
-                            className="ml-2 text-sm text-blue-600 hover:underline"
-                        >
+                        <button onClick={handleClearSelection} className="text-xs font-bold text-slate-500 hover:text-primary transition-colors underline underline-offset-2">
                             Clear selection
                         </button>
                     </div>
                 )}
-            </div>
+            </article>
 
-            {/* Color Legend */}
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
-                <h3 className="text-sm font-semibold mb-2 text-gray-700">Color Legend</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
-                    {conditionOptions.map(option => {
-                        const colors = getConditionColors(option.value);
-                        return (
-                            <div key={option.value} className="flex items-center gap-1">
-                                <div className={`w-4 h-4 rounded ${colors.bg}`}></div>
-                                <span className="text-gray-700">{option.label}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Odontogram */}
-                <div className="lg:col-span-2 bg-white rounded-lg shadow p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Odontogram Canvas */}
+                <article className="lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-slate-100 flex items-center justify-center overflow-x-auto">
                     <Odontogram
                         key={odontoKey}
                         status={toothSelection}
                         notation="Universal"
                         onChange={handleToothClick}
                     />
-                </div>
+                </article>
 
                 {/* Tooth Detail Panel */}
-                <div className="bg-white rounded-lg shadow p-4 max-h-[600px] overflow-y-auto">
+                <aside className="lg:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100 max-h-[600px] overflow-y-auto">
                     {selectedTeeth.length > 0 ? (
                         selectedTeeth.length === 1 ? (
                             <ToothDetailPanel
@@ -460,10 +383,29 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                             />
                         )
                     ) : (
-                        <p className="text-gray-500">Select tooth/teeth to chart</p>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                            <span className="material-symbols-outlined text-4xl mb-2 opacity-50">touch_app</span>
+                            <p className="text-sm font-medium">Select teeth on the chart to add findings</p>
+                        </div>
                     )}
-                </div>
+                </aside>
             </div>
+
+            {/* Color Legend */}
+            <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
+                <h3 className="text-xs font-bold font-headline text-slate-400 uppercase tracking-widest mb-4">Color Legend</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {conditionOptions.map(option => {
+                        const colors = getConditionColors(option.value);
+                        return (
+                            <div key={option.value} className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${colors.bg}`}></div>
+                                <span className="text-xs font-semibold text-slate-700">{option.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </article>
         </div>
     );
 }
@@ -473,72 +415,62 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
     const colors = getConditionColors(activeCondition);
 
     return (
-        <div>
-            <h3 className="text-xl font-bold mb-4">
-                {selectedTeeth.length} Teeth Selected
-            </h3>
-
-            <div className="mb-4 p-3 bg-gray-50 rounded">
-                <div className="text-sm font-medium mb-2">Selected teeth:</div>
-                <div className="flex flex-wrap gap-2">
-                    {selectedTeeth.map((tooth) => (
-                        <span key={tooth.id} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                            {tooth.id.replace('teeth-', '')}
-                        </span>
-                    ))}
+        <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700">
+                    <span className="material-symbols-outlined">layers</span>
                 </div>
+                <h3 className="text-lg font-bold font-headline">{selectedTeeth.length} Teeth Selected</h3>
             </div>
 
-            {/* Batch Surface Editing */}
-            <div className="mb-6">
-                <h4 className="font-semibold mb-2">Apply to Surface (All Selected)</h4>
+            <div className="flex flex-wrap gap-2">
+                {selectedTeeth.map((tooth) => (
+                    <span key={tooth.id} className="px-2.5 py-1 bg-surface-container text-slate-700 font-bold rounded-lg text-xs">
+                        {tooth.id.replace('teeth-', '')}
+                    </span>
+                ))}
+            </div>
+
+            <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Apply to Surface</h4>
                 <div className="grid grid-cols-2 gap-2">
                     {surfaces.map(surface => (
                         <button
                             key={surface}
                             onClick={() => onSurfaceClick(surface)}
-                            className={`p-3 rounded-lg border-2 hover:ring-2 text-sm transition-all ${colors.border} hover:${colors.light}`}
+                            className={`p-3 rounded-xl border-2 text-left hover:ring-2 transition-all ${colors.border} hover:${colors.light}`}
                         >
-                            <div className="font-medium capitalize">{surface}</div>
-                            <div className={`text-xs ${colors.lightText}`}>
-                                Apply {activeCondition}
-                            </div>
+                            <div className="font-bold text-sm capitalize text-slate-800">{surface}</div>
+                            <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${colors.lightText}`}>Apply {activeCondition}</div>
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Batch Condition Adding */}
-            <div className="mb-6">
-                <h4 className="font-semibold mb-2">Add Condition (All Selected)</h4>
+            <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Whole Tooth</h4>
                 <button
                     onClick={() => onAddCondition(activeCondition)}
-                    className={`w-full px-4 py-2 rounded-lg font-medium ${colors.bg} ${colors.text} hover:opacity-90`}
+                    className={`w-full px-4 py-3 rounded-xl font-bold transition-transform active:scale-95 ${colors.bg} ${colors.text}`}
                 >
                     Add {activeCondition} to all
                 </button>
             </div>
 
-            {/* Individual Tooth Summary */}
-            <div>
-                <h4 className="font-semibold mb-2">Individual Tooth Data</h4>
-                <div className="space-y-3">
+            <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Individual Data</h4>
+                <div className="space-y-2">
                     {selectedTeeth.map((tooth) => {
                         const data = chartData[tooth.id];
                         return (
-                            <div key={tooth.id} className="p-3 border rounded">
-                                <div className="font-medium mb-1">
-                                    Tooth {tooth.id.replace('teeth-', '')}
-                                </div>
+                            <div key={tooth.id} className="p-3 bg-slate-50 rounded-xl">
+                                <div className="font-bold text-sm text-slate-800 mb-1">Tooth {tooth.id.replace('teeth-', '')}</div>
                                 {data?.conditions && data.conditions.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
                                         {data.conditions.map((condition, idx) => {
                                             const condColors = getConditionColors(condition);
                                             return (
-                                                <span
-                                                    key={idx}
-                                                    className={`px-2 py-0.5 rounded text-xs ${condColors.light} ${condColors.lightText}`}
-                                                >
+                                                <span key={idx} className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${condColors.light} ${condColors.lightText}`}>
                                                     {condition}
                                                 </span>
                                             );
@@ -554,57 +486,55 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
     );
 }
 
-function ToothDetailPanel({
-    toothId,
-    data,
-    onSurfaceClick,
-    onAddCondition,
-    onRemoveCondition,
-    onNotesChange,
-    activeCondition
-}) {
+function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRemoveCondition, onNotesChange, activeCondition }) {
     const surfaces = ['mesial', 'distal', 'occlusal', 'buccal', 'lingual'];
     const colors = getConditionColors(activeCondition);
 
     return (
-        <div>
-            <h3 className="text-xl font-bold mb-4">Tooth {toothId.replace('teeth-', '')}</h3>
+        <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700">
+                    <span className="material-symbols-outlined">dentistry</span>
+                </div>
+                <div>
+                    <h3 className="text-lg font-bold font-headline leading-tight">Tooth {toothId.replace('teeth-', '')}</h3>
+                    <p className="text-xs text-slate-500 font-label">Detailed charting</p>
+                </div>
+            </div>
 
-            <div className="mb-6">
-                <h4 className="font-semibold mb-2">Surfaces</h4>
+            <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Surfaces</h4>
                 <div className="grid grid-cols-2 gap-2">
                     {surfaces.map(surface => {
                         const surfaceData = data?.surfaces?.[surface];
                         const surfaceColors = surfaceData?.condition
                             ? getConditionColors(surfaceData.condition)
-                            : { border: 'border-gray-300', light: 'bg-white', lightText: 'text-gray-600' };
+                            : { border: 'border-slate-200', light: 'bg-surface-container-low', lightText: 'text-slate-400' };
 
                         return (
                             <button
                                 key={surface}
                                 onClick={() => onSurfaceClick(surface)}
-                                className={`p-3 rounded-lg border-2 text-sm transition-all ${surfaceData?.condition
-                                    ? `${surfaceColors.light} ${surfaceColors.border} ring-2 ring-offset-1`
-                                    : `border-gray-300 hover:${colors.light} hover:${colors.border}`
+                                className={`p-3 rounded-xl border-2 text-left transition-all ${surfaceData?.condition
+                                    ? `${surfaceColors.light} ${surfaceColors.border} ring-1 ring-offset-1 ring-${surfaceColors.border}`
+                                    : `border-slate-200 hover:${colors.light} hover:${colors.border}`
                                     }`}
                             >
-                                <div className="font-medium capitalize">{surface}</div>
-                                {surfaceData && (
-                                    <div className={`text-xs font-medium ${surfaceColors.lightText}`}>
-                                        {surfaceData.condition}
-                                    </div>
-                                )}
+                                <div className="font-bold text-sm capitalize text-slate-800">{surface}</div>
+                                <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${surfaceColors.lightText}`}>
+                                    {surfaceData?.condition || 'Clear'}
+                                </div>
                             </button>
                         );
                     })}
                 </div>
             </div>
 
-            <div className="mb-4">
-                <h4 className="font-semibold mb-2">Conditions</h4>
+            <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Conditions</h4>
                 <button
                     onClick={() => onAddCondition(activeCondition)}
-                    className={`w-full mb-2 px-3 py-2 rounded-lg text-sm font-medium ${colors.bg} ${colors.text} hover:opacity-90`}
+                    className={`w-full mb-3 px-4 py-3 rounded-xl font-bold transition-transform active:scale-95 ${colors.bg} ${colors.text}`}
                 >
                     Add {activeCondition}
                 </button>
@@ -614,16 +544,10 @@ function ToothDetailPanel({
                         {data.conditions.map((condition, idx) => {
                             const condColors = getConditionColors(condition);
                             return (
-                                <span
-                                    key={idx}
-                                    className={`px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2 ${condColors.light} ${condColors.lightText}`}
-                                >
+                                <span key={idx} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 ${condColors.light} ${condColors.lightText}`}>
                                     {condition}
-                                    <button
-                                        onClick={() => onRemoveCondition(toothId, condition)}
-                                        className={`text-lg hover:opacity-70 ${condColors.lightText}`}
-                                    >
-                                        ×
+                                    <button onClick={() => onRemoveCondition(toothId, condition)} className="hover:opacity-70 flex items-center">
+                                        <span className="material-symbols-outlined text-sm">close</span>
                                     </button>
                                 </span>
                             );
@@ -633,11 +557,11 @@ function ToothDetailPanel({
             </div>
 
             <div>
-                <h4 className="font-semibold mb-2">Notes</h4>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Clinical Notes</h4>
                 <textarea
-                    className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full bg-surface-container-highest border-none rounded-xl focus:ring-1 focus:ring-primary/40 transition-all text-sm py-3 px-4 resize-none"
                     rows="3"
-                    placeholder="Add notes..."
+                    placeholder="Specific remarks for this tooth..."
                     value={data?.notes || ''}
                     onChange={(e) => onNotesChange(toothId, e.target.value)}
                 />
@@ -650,45 +574,23 @@ function ChartsPage() {
     const [currentChart, setCurrentChart] = useState(null);
     const [charts, setCharts] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
-    const [patientName, setPatientName] = useState('');
+    const [searchQuery, setSearchQuery] = useState(''); // REPLACED patientName
     const [isSaving, setIsSaving] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [availableNotes, setAvailableNotes] = useState([]);
     const [noteSearchTerm, setNoteSearchTerm] = useState('');
 
-    useEffect(() => {
-        loadCharts();
-    }, []);
-
-    const handlePatientNameChange = (event) => {
-        setPatientName(event.target.value);
-    }
+    useEffect(() => { loadCharts(); }, []);
 
     const saveStatus = async (chartId, status) => {
         if (isSaving) return;
-        
         try {
             setIsSaving(true);
-            const {error} = await supabase
-                .from('charts')
-                .update({status: status})
-                .eq('id', chartId)
-                .select();
-            
+            const { error } = await supabase.from('charts').update({ status: status }).eq('id', chartId).select();
             if (error) throw error;
-
-            setCharts(prevCharts => 
-                prevCharts.map(chart => 
-                    chart.id === chartId ? { ...chart, status: status } : chart
-                )
-            );
-
-            setCurrentChart(prevChart => ({
-                ...prevChart,
-                status: status
-            }));
-
+            setCharts(prevCharts => prevCharts.map(chart => chart.id === chartId ? { ...chart, status: status } : chart));
+            setCurrentChart(prevChart => ({ ...prevChart, status: status }));
         } catch (error) {
             console.error('Error saving chart:', error);
         } finally {
@@ -698,55 +600,39 @@ function ChartsPage() {
 
     const handleStatusChange = async (chartId, status) => {
         if (isSaving) return;
-
-        if (status === 'In Progress') {
-            saveStatus(chartId, 'Completed');
-        } else {
-            saveStatus(chartId, 'In Progress');
-        }
-    }
-
-    const handleSetCurrentChart = (chart) => {
-        setCurrentChart(chart);
+        if (status === 'In Progress') { saveStatus(chartId, 'Completed'); } 
+        else { saveStatus(chartId, 'In Progress'); }
     }
 
     const loadCharts = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-
-            const { data, error } = await supabase
-                .from('charts')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('updated_at', { ascending: false });
-
+            const { data, error } = await supabase.from('charts').select('*').eq('user_id', user.id).order('updated_at', { ascending: false });
             if (error) throw error;
-
             setCharts(data || []);
-
-            
         } catch (error) {
             console.error('Error loading charts:', error);
         }
     };
 
     const createNewChart = async () => {
-        if (!patientName.trim()) {
-            alert("Please enter a patient name.")
-            return;
-        }
         try {
             setIsCreating(true);
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            const today = new Date();
+            const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            // Instantly create a blank chart so the user can name it in the editor
             const { data, error } = await supabase
                 .from('charts')
                 .insert([{
                     user_id: user.id,
-                    date: `${new Date().toLocaleDateString()}`,
-                    patient_name: patientName
+                    date: dateString,
+                    patient_name: '', // Blank by default!
+                    status: 'In Progress'
                 }])
                 .select()
                 .single();
@@ -754,7 +640,7 @@ function ChartsPage() {
             if (error) throw error;
 
             setCharts(prev => [data, ...prev]);
-            setCurrentChart(data);
+            setCurrentChart(data); // Open Editor instantly
         } catch (error) {
             console.error('Error creating chart:', error);
         } finally {
@@ -764,44 +650,44 @@ function ChartsPage() {
 
     const deleteChart = async (chartId) => {
         if (!confirm('Are you sure you want to delete this chart?')) return;
-
         try {
-            const { error } = await supabase
-                .from('charts')
-                .delete()
-                .eq('id', chartId);
-
+            const { error } = await supabase.from('charts').delete().eq('id', chartId);
             if (error) throw error;
-
-            const remainingCharts = charts.filter(c => c.id !== chartId);
-            setCharts(remainingCharts);
-            
-            if (currentChart?.id === chartId) {
-                setCurrentChart(null);
-            }
-
+            setCharts(charts.filter(c => c.id !== chartId));
+            if (currentChart?.id === chartId) setCurrentChart(null);
         } catch (error) {
             console.error('Error deleting chart:', error);
         }
     };
 
+    // Auto-save the patient name from the editor view
+    useEffect(() => {
+        if (!currentChart) return;
+        const debounceTimer = setTimeout(async () => {
+            try {
+                await supabase.from('charts')
+                    .update({ patient_name: currentChart.patient_name || '' })
+                    .eq('id', currentChart.id);
+                
+                setCharts(prevCharts => prevCharts.map(c => 
+                    c.id === currentChart.id ? { ...c, patient_name: currentChart.patient_name } : c
+                ));
+            } catch (err) {
+                console.error("Error auto-saving name", err);
+            }
+        }, 1000);
+        return () => clearTimeout(debounceTimer);
+    }, [currentChart?.patient_name]);
+
+
     const createChartFromNote = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-
-            // Fetch user's notes, ordered by newest first
-            const { data, error } = await supabase
-                .from('notes')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('status', 'finalized')
-                .order('created_at', { ascending: false });
-
+            const { data, error } = await supabase.from('notes').select('*').eq('user_id', user.id).eq('status', 'finalized').order('created_at', { ascending: false });
             if (error) throw error;
-
             setAvailableNotes(data || []);
-            setIsNoteModalOpen(true); // Open the modal
+            setIsNoteModalOpen(true);
         } catch (error) {
             console.error('Error fetching notes:', error);
             alert('Could not load notes.');
@@ -811,25 +697,14 @@ function ChartsPage() {
     const handleSelectNoteForChart = async (note) => {
         try {
             setIsCreating(true);
-
-            // 1. Check if chart already exists for this note
-            const { data: existingChart, error: checkError } = await supabase
-                .from('charts')
-                .select('id')
-                .eq('note_id', note.id)
-                .single();
-
+            const { data: existingChart, error: checkError } = await supabase.from('charts').select('id').eq('note_id', note.id).single();
             if (existingChart) {
                 alert("A chart has already been generated for this note!");
                 setIsCreating(false);
                 return;
             }
+            if (checkError && checkError.code !== 'PGRST116') throw checkError;
 
-            if (checkError && checkError.code !== 'PGRST116') {
-                throw checkError;
-            }
-
-            // 2. Format the payload using the raw Supabase JSON structure
             const combinedNoteText = `
             Medical History: ${note.patient_history || 'None'}
             Chief Complaint: ${note.chief_complaint || 'None'}
@@ -841,8 +716,6 @@ function ChartsPage() {
         `;
 
             const { data: { user } } = await supabase.auth.getUser();
-
-            // 3. Send to your agent
             const response = await fetch('http://localhost:8000/api/chart-from-note', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -856,12 +729,11 @@ function ChartsPage() {
             });
 
             const result = await response.json();
-
             if (!response.ok) throw new Error(result.detail || 'Failed to generate chart');
 
             alert('Chart successfully generated!');
-            setIsNoteModalOpen(false); // Close modal on success
-            loadCharts(); // Refresh the charts list
+            setIsNoteModalOpen(false);
+            loadCharts();
 
         } catch (error) {
             console.error("Chart generation error:", error);
@@ -872,157 +744,157 @@ function ChartsPage() {
     };
 
     const handleUploadComplete = async (uploadRecord) => {
-    try {
-        // Ping your new FastAPI endpoint
-        const response = await fetch('http://localhost:8000/api/process-chart', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chart_id: uploadRecord.chart_id,
-                file_path: uploadRecord.file_path
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Agent failed to process the chart');
+        try {
+            const response = await fetch('http://localhost:8000/api/process-chart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chart_id: uploadRecord.chart_id, file_path: uploadRecord.file_path })
+            });
+            if (!response.ok) throw new Error('Agent failed to process the chart');
+            setRefreshTrigger(prev => prev + 1);
+        } catch (error) {
+            console.error("Processing error:", error);
+            alert("There was an error parsing the chart with the AI agent.");
         }
-
-        setRefreshTrigger(prev => prev + 1);
-        
-    } catch (error) {
-        console.error("Processing error:", error);
-        alert("There was an error parsing the chart with the AI agent.");
-
-        throw error;
-    }
-};
+    };
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <div className="max-w-7xl mx-auto p-6">
-                {/* Header */}
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                    <div className="flex justify-between items-center">
-                        <div className='flex'>
-                            <h1 className="text-3xl font-bold text-gray-900 mr-5">Charts</h1>
-                            <input
-                                type="text"
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Patient Name"
-                                value={patientName}
-                                onChange={handlePatientNameChange}
-                            />
-                        </div>
-                        <div>
-                            <button
-                                onClick={createChartFromNote}
-                                disabled={isCreating}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium mr-6"
-                            >
-                                {isCreating ? 'Generating...' : 'Generate Chart from Note'}
-                            </button>
-                            <button
-                                onClick={createNewChart}
-                                disabled={isCreating}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
-                            >
-                                {isCreating ? 'Creating...' : '+ New Chart'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Chart Selector */}
-                    {charts.length > 0 && (
-                        <div className="mt-4 overflow-x-auto border border-gray-200 rounded-lg">
-                            <table className="w-full text-sm text-left text-gray-600">
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Date</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Chart Type</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Patient</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold">Status</th>
-                                    <th scope="col" className="px-6 py-4 font-semibold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {charts
-                                    .filter(chart => {
-                                        const searchTerm = patientName.trim().toLowerCase();
-
-                                        if (!searchTerm) return true;
-
-                                        const currentName = (chart.patient_name || '').toLowerCase();
-                                        
-                                        return currentName.includes(searchTerm);
-                                    })
-                                    .map(chart => (
-                                        <tr key={chart.id} className="bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">{chart.date}</td>
-                                            <td className="px-6 py-4">{chart.type}</td>
-                                            <td className="px-6 py-4 font-medium text-gray-900">{chart.patient_name}</td>
-                                            <td className="px-6 py-4">
-                                                <button 
-                                                    className={`text-xs font-medium px-2.5 py-1 rounded-md ${chart.status === 'In Progress'? 'bg-yellow-100 text-yellow-800': 'bg-green-100 text-green-800'} `}
-                                                    onClick={() => handleStatusChange(chart.id, chart.status)}
-                                                >{chart.status}</button>
-                                            </td>
-                                            <td className="px-6 py-4 text-right flex justify-end gap-3">
-                                                <button onClick={() => handleSetCurrentChart(chart)} className="text-gray-500 hover:text-blue-600" title="Edit">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                                </button>
-                                                <button onClick={() => deleteChart(chart.id)} className="text-red-500 hover:text-red-700" title="Delete">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+        <div className="min-h-screen bg-surface text-on-surface font-body relative">
+            
+            {/* Top AppBar Shell */}
+            <header className="sticky top-0 z-40 flex justify-between items-center px-8 py-4 w-full bg-slate-50/85 backdrop-blur-md border-b border-slate-200/50">
+                <div className="flex items-center gap-6">
+                    <h2 className="text-lg font-bold tracking-tight text-primary font-headline">Clinical Charts</h2>
+                    {currentChart?.patient_name && (
+                        <>
+                            <div className="h-6 w-px bg-slate-200"></div>
+                            <div className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[18px]">person</span>
+                                Context: <span className="text-slate-800 font-semibold">{currentChart.patient_name}</span>
+                            </div>
+                        </>
                     )}
                 </div>
+            </header>
 
-                {currentChart ? (
-                    <div>
-                        <div className='bg-white rounded-lg shadow-sm p-6 mb-6'>
-                            <h1 className="text-3xl font-bold text-gray-900">Import</h1>
-                            <p className="text-gray-600 mt-1">
-                                Upload a chart document for <span className="font-semibold">{currentChart.patient_name || 'this patient'}</span>
-                            </p>
-                            <div className='bg-gray-100 mt-6 cursor-pointer rounded-md'>
-                                <FileUpload
-                                    elementId={currentChart.id}
-                                    onUploadComplete={handleUploadComplete}
-                                />
-                            </div>
-                        </div>
-
-                        <div className='bg-white rounded-lg shadow p-4 mb-4'>
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-800">
-                                        {currentChart.patient_name || 'Unknown Patient'}
-                                    </h2>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Chart ID: #{currentChart.id.slice(0, 8)}
-                                    </p>
-                                </div>
-                                <div className="mt-2 md:mt-0">
+            <div className="p-8 max-w-7xl mx-auto">
+                {!currentChart ? (
+                    // --- LIST / DASHBOARD VIEW ---
+                    <div className="grid grid-cols-12 gap-6">
+                        <section className="col-span-12 bg-surface-container-lowest rounded-xl p-1 shadow-sm border border-slate-100">
+                            <div className="px-6 py-5 flex justify-between items-center">
+                                <h3 className="text-base font-bold font-headline text-slate-900 tracking-tight">Active Dental Charts</h3>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Search patients..."
+                                        className="text-sm px-3 py-2 bg-surface-container-low border-none rounded-lg focus:ring-1 focus:ring-primary w-64"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
                                     <button
-                                        className={`text-s font-medium px-2.5 py-1 rounded-md mr-6 ${currentChart.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'} `}
-                                        onClick={() => handleStatusChange(currentChart.id, currentChart.status)}
-                                    >{currentChart.status}</button>
-                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
-                                        <svg className="mr-1.5 h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                        {currentChart.date}
-                                    </span>
+                                        onClick={createChartFromNote}
+                                        disabled={isCreating}
+                                        className="px-4 py-2 text-xs font-bold text-primary bg-primary-container/20 rounded-lg hover:bg-primary-container/30 transition-colors flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                                        AI Generate
+                                    </button>
+                                    <button
+                                        onClick={createNewChart}
+                                        disabled={isCreating}
+                                        className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-lg hover:bg-primary-container transition-colors shadow-md shadow-primary/20 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">add</span>
+                                        New Chart
+                                    </button>
                                 </div>
                             </div>
-                        </div>
+
+                            <div className="w-full overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-surface-container-low/50">
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {charts.filter(chart => {
+                                            const term = searchQuery.trim().toLowerCase();
+                                            if (!term) return true;
+                                            return (chart.patient_name || '').toLowerCase().includes(term);
+                                        }).map(chart => (
+                                            <tr key={chart.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setCurrentChart(chart)}>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm font-semibold text-slate-900">{formatPrettyDate(chart.date)}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm font-semibold text-slate-800">{chart.patient_name || 'Unnamed Chart'}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${chart.status === 'In Progress' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {chart.status || 'Draft'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={(e) => { e.stopPropagation(); deleteChart(chart.id); }} className="text-slate-400 hover:text-error transition-colors p-2">
+                                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                ) : (
+                    // --- EDITOR VIEW ---
+                    <div className="space-y-6 pb-24">
+                        <section className="flex justify-between items-center mb-8">
+                            <div>
+                                <button onClick={() => setCurrentChart(null)} className="flex items-center gap-2 text-slate-500 hover:text-primary text-sm font-bold mb-4 transition-colors">
+                                    <span className="material-symbols-outlined text-sm">arrow_back</span> Back to Charts
+                                </button>
+                                <input
+                                    type="text"
+                                    className="text-3xl font-extrabold tracking-tight text-on-surface bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 w-full"
+                                    placeholder="Patient Name"
+                                    value={currentChart.patient_name || ''}
+                                    onChange={(e) => setCurrentChart({...currentChart, patient_name: e.target.value})}
+                                />
+                                <div className="mt-2 text-on-surface-variant flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm">calendar_today</span>
+                                    <span className="text-sm font-medium">{formatPrettyDate(currentChart.date)}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <button
+                                    onClick={() => handleStatusChange(currentChart.id, currentChart.status)}
+                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${currentChart.status === 'In Progress' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}
+                                >
+                                    Mark as {currentChart.status === 'In Progress' ? 'Completed' : 'In Progress'}
+                                </button>
+                            </div>
+                        </section>
+
+                        {/* AI Import Block */}
+                        <article className="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold font-headline flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">document_scanner</span>
+                                    AI Legacy Chart Import
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">Upload a PDF or image of an old chart to automatically map findings.</p>
+                            </div>
+                            <div className="w-96">
+                                <FileUpload elementId={currentChart.id} onUploadComplete={handleUploadComplete} />
+                            </div>
+                        </article>
+
                         <DentalChart
                             key={currentChart.id}
                             chartId={currentChart.id}
@@ -1030,79 +902,67 @@ function ChartsPage() {
                             refreshTrigger={refreshTrigger}
                         />
                     </div>
-                ) : (
-                    <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500 mb-6">
-                        <p className="text-lg font-medium text-gray-600 mb-2">No Chart Selected</p>
-                        <p>Select a patient from the table above or create a new chart to begin importing files and charting.</p>
-                    </div>
                 )}
             </div>
-            
+
             {/* Note Selection Modal */}
             {isNoteModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
-
-                        {/* Modal Header & Search */}
-                        <div className="p-4 border-b flex flex-col gap-4 bg-gray-50 rounded-t-lg">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-gray-800">Select Note to Generate Chart</h2>
-                                <button
-                                    onClick={() => {
-                                        setIsNoteModalOpen(false);
-                                        setNoteSearchTerm(''); // Clear search when closing
-                                    }}
-                                    className="text-gray-500 hover:text-gray-800 font-bold text-xl"
-                                >
-                                    ✕
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden border border-slate-200/50">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold font-headline text-slate-900">Generate Chart from Note</h2>
+                                <button onClick={() => { setIsNoteModalOpen(false); setNoteSearchTerm(''); }} className="text-slate-400 hover:text-slate-700 transition-colors">
+                                    <span className="material-symbols-outlined">close</span>
                                 </button>
                             </div>
-                            <input
-                                type="text"
-                                placeholder="Search notes by patient name..."
-                                value={noteSearchTerm}
-                                onChange={(e) => setNoteSearchTerm(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
+                                    <span className="material-symbols-outlined text-lg">search</span>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Search finalized notes..."
+                                    value={noteSearchTerm}
+                                    onChange={(e) => setNoteSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 border-none bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-primary text-sm"
+                                />
+                            </div>
                         </div>
 
-                        {/* Modal Body */}
-                        <div className="p-4 overflow-y-auto flex-1">
+                        <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
                             {availableNotes.length === 0 ? (
-                                <p className="text-gray-500 text-center py-8">No finalized notes available. Finalize a note first.</p>
+                                <div className="text-center py-12">
+                                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-3">edit_document</span>
+                                    <p className="text-sm font-medium text-slate-500">No finalized notes available.</p>
+                                    <p className="text-xs text-slate-400">Finalize a SOAP note first to generate a chart from it.</p>
+                                </div>
                             ) : (
                                 <div className="space-y-3">
                                     {availableNotes
-                                        .filter(note =>
-                                            (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase())
-                                        )
+                                        .filter(note => (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase()))
                                         .map(note => (
-                                            <div key={note.id} className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:bg-blue-50 transition-colors">
-                                                <div className="mb-3 sm:mb-0">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-bold text-lg text-gray-900">{note.patient_name || 'Unknown Patient'}</span>
-                                                        <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-gray-100 text-gray-600">
-                                                            {note.date}
+                                            <div key={note.id} className="border border-slate-100 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                                                <div className="mb-4 sm:mb-0">
+                                                    <div className="flex items-center gap-3 mb-1">
+                                                        <span className="font-bold text-lg text-slate-900 font-headline">{note.patient_name || 'Unknown Patient'}</span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 uppercase tracking-widest">
+                                                            {formatPrettyDate(note.date)}
                                                         </span>
                                                     </div>
-                                                    <div className="text-sm mt-2 text-gray-700 max-w-xl">
-                                                        <span className="font-semibold text-gray-900">CC:</span> {note.chief_complaint || 'No chief complaint recorded'}
+                                                    <div className="text-sm text-slate-600 line-clamp-1 max-w-xl">
+                                                        <span className="font-bold text-slate-800">CC:</span> {note.chief_complaint || 'No chief complaint recorded'}
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleSelectNoteForChart(note)}
                                                     disabled={isCreating}
-                                                    className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 w-full sm:w-auto shrink-0"
+                                                    className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-container font-bold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 w-full sm:w-auto shrink-0"
                                                 >
-                                                    {isCreating ? 'Selecting...' : 'Select'}
+                                                    {isCreating ? 'Mapping...' : 'Generate AI Chart'}
                                                 </button>
                                             </div>
                                         ))}
-
-                                    {/* Show message if search yields no results */}
-                                    {availableNotes.filter(note => (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase())).length === 0 && (
-                                        <p className="text-gray-500 text-center py-4">No patients found matching "{noteSearchTerm}"</p>
-                                    )}
                                 </div>
                             )}
                         </div>

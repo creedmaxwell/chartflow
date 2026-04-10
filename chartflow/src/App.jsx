@@ -80,7 +80,7 @@ function App() {
 
   // Show main app if authenticated
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-surface">
       {/* Sidebar - always visible on desktop, slide-out on mobile */}
       <Sidebar 
         activePage={currentPage} 

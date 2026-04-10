@@ -8,7 +8,7 @@ export default function AudioInputHandler({ onAudioSubmit, disabled }) {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    onAudioSubmit(file, file.name); // Pass the file up to NotesPage
+    onAudioSubmit(file, file.name);
   };
 
   const startRecording = async () => {
@@ -25,7 +25,7 @@ export default function AudioInputHandler({ onAudioSubmit, disabled }) {
 
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        onAudioSubmit(audioBlob, "recording.webm"); // Pass the recording up to NotesPage
+        onAudioSubmit(audioBlob, "recording.webm");
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -45,34 +45,60 @@ export default function AudioInputHandler({ onAudioSubmit, disabled }) {
   };
 
   return (
-    <div className="p-6 max-w-lg mx-auto border rounded shadow-sm bg-white">
-      <div className="flex flex-col gap-6">
-        {/* Option 1: Record Audio */}
-        <div className="p-4 border rounded bg-gray-50">
-          <h3 className="font-semibold mb-2 text-gray-800">Option 1: Dictate Note</h3>
-          <button 
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={disabled && !isRecording}
-            className={`px-4 py-2 rounded text-white w-full transition-colors ${
-              isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {isRecording ? "Stop Recording & Submit" : "Start Recording"}
-          </button>
-        </div>
+    <div className="flex flex-col gap-5 w-full p-2">
+      
+      {/* Option 1: Dictate (Primary Action) */}
+      <div 
+        className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center transition-all ${
+          isRecording 
+            ? 'border-red-300 bg-red-50/50' 
+            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-primary/40'
+        }`}
+      >
+        <button 
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={disabled && !isRecording}
+          className={`w-14 h-14 rounded-full shadow-sm flex items-center justify-center mb-4 transition-all duration-300 ${
+            isRecording 
+              ? 'bg-red-500 text-white animate-pulse scale-110 shadow-red-500/40' 
+              : 'bg-white text-primary hover:scale-110 disabled:opacity-50 disabled:hover:scale-100'
+          }`}
+        >
+          <span className="material-symbols-outlined text-2xl">
+            {isRecording ? 'stop' : 'mic'}
+          </span>
+        </button>
+        
+        <span className={`text-sm font-semibold mb-1 ${isRecording ? 'text-red-700' : 'text-slate-900'}`}>
+          {isRecording ? 'Recording in progress...' : 'Click to dictate note'}
+        </span>
+        <span className="text-xs text-slate-400">
+          {isRecording ? 'Click the stop button when finished' : 'Ensure your microphone is connected'}
+        </span>
+      </div>
 
-        {/* Option 2: Upload Audio */}
-        <div className="p-4 border rounded bg-gray-50">
-          <h3 className="font-semibold mb-2 text-gray-800">Option 2: Upload File</h3>
-          <input 
-            type="file" 
-            accept="audio/*" 
-            onChange={handleFileUpload}
-            disabled={isRecording || disabled}
-            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+      {/* Divider */}
+      <div className="flex items-center justify-center gap-4 px-2">
+        <div className="h-px bg-slate-200 flex-1"></div>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">OR</span>
+        <div className="h-px bg-slate-200 flex-1"></div>
+      </div>
+
+      {/* Option 2: Upload File (Secondary Action) */}
+      <div className={`relative border border-slate-200 rounded-xl p-3 bg-surface-container-lowest transition-colors flex items-center justify-center group ${isRecording || disabled ? 'opacity-50' : 'hover:border-primary/40 hover:bg-slate-50'}`}>
+        <input 
+          type="file" 
+          accept="audio/*" 
+          onChange={handleFileUpload}
+          disabled={isRecording || disabled}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+        />
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 group-hover:text-primary transition-colors">
+          <span className="material-symbols-outlined text-lg">upload_file</span>
+          Browse for audio file
         </div>
       </div>
+
     </div>
   );
 }
