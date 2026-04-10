@@ -33,3 +33,6 @@ Thumbs.db
 
 # Optional: testing / coverage
 coverage/
+
+# React Component Preview
+previewConfig.json
