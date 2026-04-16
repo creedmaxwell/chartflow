@@ -50,7 +50,6 @@ function App() {
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        // CRITICAL FIX: Passed onPageChange down so dashboard buttons work!
         return <DashboardPage onPageChange={setCurrentPage} />;
       case 'notes':
         return <NotesPage />;
@@ -92,7 +91,6 @@ function App() {
       />
 
       {/* Main content area - takes up remaining space */}
-      {/* CRITICAL FIX: Changed lg:ml-0 to lg:ml-64 to offset the fixed sidebar */}
       <div className="flex-1 lg:ml-0 w-full relative">
         <div className="p-4 md:p-8 pt-20 lg:pt-8 w-full max-w-[1600px] mx-auto">
           {renderContent()}
