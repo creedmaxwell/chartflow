@@ -92,7 +92,7 @@ function App() {
 
       {/* Main content area - takes up remaining space */}
       <div className="flex-1 lg:ml-0 w-full relative">
-        <div className="p-4 md:p-8 pt-20 lg:pt-8 w-full max-w-[1600px] mx-auto">
+        <div className="w-full max-w-[1600px] mx-auto">
           {renderContent()}
         </div>
       </div>
