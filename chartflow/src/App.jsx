@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import supabase from './lib/supabase';
 import Login from './pages/Login';
 import Sidebar from './components/layout/Sidebar';
-import Header from './components/layout/Header';
 import DashboardPage from './pages/DashboardPage';
 import NotesPage from './pages/NotesPage';
 import ChartsPage from './pages/ChartsPage';
-//import SettingsPage from './pages/SettingsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -57,6 +56,8 @@ function App() {
         return <NotesPage />;
       case 'charts':
         return <ChartsPage />;
+      case 'settings':
+        return <SettingsPage />;
       default:
         return <DashboardPage onPageChange={setCurrentPage} />;
     }
