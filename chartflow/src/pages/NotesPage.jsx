@@ -406,8 +406,10 @@ export default function NotesPage() {
         formData.append('audio_file', audioData, filename);
 
         try {
+            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/process-transcript', {
                 method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}`},
                 body: formData,
             });
 
@@ -653,9 +655,13 @@ export default function NotesPage() {
                 Additional Notes: ${currentNote.additional_notes || 'None'}
             `;
 
+            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/chart-from-note', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: JSON.stringify({
                     user_id: user.id,
                     patient_name: currentNote.patientName,

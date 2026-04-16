@@ -716,9 +716,13 @@ function ChartsPage() {
         `;
 
             const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/chart-from-note', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: JSON.stringify({
                     user_id: user.id,
                     patient_name: note.patient_name,
@@ -745,9 +749,13 @@ function ChartsPage() {
 
     const handleUploadComplete = async (uploadRecord) => {
         try {
+            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/process-chart', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: JSON.stringify({ chart_id: uploadRecord.chart_id, file_path: uploadRecord.file_path })
             });
             if (!response.ok) throw new Error('Agent failed to process the chart');

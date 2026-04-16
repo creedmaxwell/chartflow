@@ -11,3 +11,4 @@ python-multipart
 spacy
 presidio_analyzer
 presidio_anonymizer
+PyJWT

@@ -2,8 +2,11 @@ import os
 import tempfile
 import uvicorn
 import re
-from fastapi import FastAPI, HTTPException, UploadFile, File
+import jwt
+from jwt import PyJWKClient
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -33,26 +36,60 @@ note_generator = create_note_generator_tool(gemini_llm)
 tools_list = [analyze_dental_chart, extract_chart_from_note, note_generator]
 
 # ================= 2. COMPILE AGENT =================
-# We hand the initialized LLM and tools to the agent
 dental_agent = build_agent(gemini_llm, tools_list)
+
+# ================= 3. SECURITY & AUTH =================
+security = HTTPBearer()
+
+supabase_url = os.environ.get("SUPABASE_URL")
+if not supabase_url:
+    raise ValueError("SUPABASE_URL environment variable is missing.")
+
+# This automatically targets your project's public Discovery URL
+jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+jwks_client = PyJWKClient(jwks_url)
+
+def verify_user(credentials: HTTPAuthorizationCredentials = Security(security)):
+    """Verifies the Supabase Asymmetric JWT token."""
+    token = credentials.credentials
+    
+    try:
+        # 1. Automatically extracts the 'kid' and fetches the matching Public Key
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        
+        # 2. Verifies the token using the Public Key, explicitly allowing ES256
+        decoded = jwt.decode(
+            token, 
+            signing_key.key, 
+            algorithms=["ES256", "RS256"], 
+            audience="authenticated"
+        )
+        return decoded["sub"] # Returns the user_id
+
+    except Exception as e:
+        print(f"--- JWT VERIFICATION FAILED: {str(e)} ---")
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 # ================= CORS CONFIGURATION =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:5173", 
+                   "http://localhost:3000",
+                   "http://127.0.0.1:5173"
+                   ], # Update with production frontend URL later
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
 # ================= SUPABASE =================
 supabase_url = os.environ.get("SUPABASE_URL")
-supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+# Note: In production, consider using the ANON key and relying on RLS policies rather than the Service Role Key for frontend-initiated requests.
+supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") 
 supabase: Client = create_client(supabase_url or "", supabase_key or "")
 
 # ================== DEEPGRAM =================
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-
 deepgram_client = DeepgramClient(api_key=DEEPGRAM_API_KEY)
 
 # ================= MODELS =================
@@ -67,14 +104,13 @@ class NoteToChartRequest(BaseModel):
     note_text: str
 
 # ================= ENDPOINTS =================
-
 @app.post("/api/process-transcript")
-async def process_transcription(audio_file: UploadFile = File(...)):
+async def process_transcription(audio_file: UploadFile = File(...), user_id: str = Depends(verify_user)):
     try:
         buffer_data = await audio_file.read()
 
         response = deepgram_client.listen.v1.media.transcribe_file(
-            request=buffer_data,        #audio_file.read(),
+            request=buffer_data,
             model="nova-3-medical",
             language="en",
             smart_format=True,
@@ -99,9 +135,8 @@ async def process_transcription(audio_file: UploadFile = File(...)):
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to process audio")
 
-
 @app.post("/api/process-chart")
-async def process_chart(request: ChartProcessRequest):
+async def process_chart(request: ChartProcessRequest, user_id: str = Depends(verify_user)):
     temp_dir = tempfile.gettempdir()
     file_name = request.file_path.split('/')[-1]
     temp_file_path = os.path.join(temp_dir, file_name)
@@ -116,13 +151,17 @@ async def process_chart(request: ChartProcessRequest):
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result.get("message"))
             
-        extracted_data = result["data"]
-        teeth_to_upsert = []
+        extracted_data = result.get("data", {})
+        teeth_data = extracted_data.get("teeth", [])
         
-        for tooth in extracted_data.get("teeth", []):
+        if not isinstance(teeth_data, list):
+            raise ValueError("AI Agent returned malformed data format for teeth.")
+            
+        teeth_to_upsert = []
+        for tooth in teeth_data:
             teeth_to_upsert.append({
                 "chart_id": request.chart_id,
-                "tooth_id": tooth["tooth_id"], 
+                "tooth_id": tooth.get("tooth_id"), 
                 "surfaces": tooth.get("surfaces") or {},
                 "conditions": tooth.get("conditions", []),
                 "notes": tooth.get("notes", "Extracted by AI Agent")
@@ -142,7 +181,10 @@ async def process_chart(request: ChartProcessRequest):
             os.remove(temp_file_path)
 
 @app.post("/api/chart-from-note")
-async def generate_chart_from_note(request: NoteToChartRequest):
+async def generate_chart_from_note(request: NoteToChartRequest, user_id: str = Depends(verify_user)):
+    if request.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized user access")
+
     try:
         # create chart record in database
         chart_response = supabase.table("charts").insert({
@@ -162,13 +204,17 @@ async def generate_chart_from_note(request: NoteToChartRequest):
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result.get("message"))
             
-        extracted_data = result["data"]
+        extracted_data = result.get("data", {})
+        teeth_data = extracted_data.get("teeth", [])
+        
+        if not isinstance(teeth_data, list):
+            raise ValueError("AI Agent returned malformed data format for teeth.")
         
         teeth_to_upsert = []
-        for tooth in extracted_data.get("teeth", []):
+        for tooth in teeth_data:
             teeth_to_upsert.append({
                 "chart_id": new_chart_id,
-                "tooth_id": tooth["tooth_id"],
+                "tooth_id": tooth.get("tooth_id"),
                 "surfaces": tooth.get("surfaces") or {},
                 "conditions": tooth.get("conditions", []),
                 "notes": tooth.get("notes", "Auto-extracted from clinical note.")
