@@ -66,10 +66,6 @@ class NoteToChartRequest(BaseModel):
     date: str
     note_text: str
 
-class ChatRequest(BaseModel):
-    message: str
-    thread_id: str
-
 # ================= ENDPOINTS =================
 
 @app.post("/api/process-transcript")
@@ -155,6 +151,9 @@ async def generate_chart_from_note(request: NoteToChartRequest):
             "date": request.date,
             "status": "In Progress"
         }).execute()
+
+        if not hasattr(chart_response, 'data') or not chart_response.data:
+            raise HTTPException(status_code=500, detail="Failed to create chart record in database.")
         
         new_chart_id = chart_response.data[0]["id"]
 
@@ -180,30 +179,6 @@ async def generate_chart_from_note(request: NoteToChartRequest):
 
         return {"status": "success", "chart_id": new_chart_id, "message": "Chart generated!"}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- Chatting with Master Agent ---
-@app.post("/api/chat")
-async def chat_with_agent(request: ChatRequest):
-    """
-    This endpoint utilizes your full LangGraph agent. 
-    You can send a message like "Can you parse the chart uploaded at /tmp/file.pdf?"
-    and the agent will autonomously decide to use the tool, execute it, and reply.
-    """
-    try:
-        config = {"configurable": {"thread_id": request.thread_id}}
-        
-        # Pass the user's message into the agent's state
-        response = dental_agent.invoke(
-            {"messages": [("user", request.message)]}, 
-            config=config
-        )
-        
-        # Get the final textual response from the agent
-        agent_reply = response["messages"][-1].content
-        return {"status": "success", "reply": agent_reply}
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
