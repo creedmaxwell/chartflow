@@ -32,6 +32,10 @@ def create_note_generator_tool(llm):
         
         If a specific section is not mentioned in the transcript, return an empty string ("") for that field. Do not make up information.
 
+        You must write this note strictly from the objective perspective of the provider. 
+        Translate all first-person patient statements ('I', 'me', 'my') into third-person clinical attribution (e.g., 'Patient reports...', 'Patient states...', 'Patient indicates...'). 
+        NEVER use first-person pronouns to refer to the patient.
+
         CRITICAL RULE: Completely ignore any technical transcription artifacts, timecodes, or bracketed text (e.g., [DURATION_1], [silence]). Do not include them in your output.
         
         Structure your output strictly according to these definitions:
