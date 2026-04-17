@@ -133,6 +133,47 @@ function ReadOnlyNote({ note }) {
 }
 
 function NoteEditor({ note, onChange, onBack, onSave, onFinalize, onUnlock, onGenerateChart, isSaving, isGeneratingChart }) {
+    // Local state to show the "Copied!" checkmark briefly
+    const [isCopied, setIsCopied] = useState(false);
+
+    // Formats the note beautifully for pasting into Dentrix/Eaglesoft
+    const handleCopyToClipboard = async () => {
+        const formattedText = `
+            PATIENT: ${note.patientName || 'Unspecified'}
+            DATE: ${formatPrettyDate(note.date) || 'Unspecified'}
+
+            CHIEF COMPLAINT:
+            ${note.chiefComplaint || 'None'}
+
+            MEDICAL HISTORY:
+            ${note.patient_history || 'None'}
+
+            SUBJECTIVE (S):
+            ${note.subjective || 'None'}
+
+            OBJECTIVE (O):
+            ${note.objective || 'None'}
+
+            ASSESSMENT (A):
+            ${note.assessment || 'None'}
+
+            PLAN (P):
+            ${note.plan || 'None'}
+
+            ADDITIONAL NOTES:
+            ${note.additional_notes || 'None'}
+        `.trim();
+
+        try {
+            await navigator.clipboard.writeText(formattedText);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000); // Reset button text after 2 seconds
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy note to clipboard. Check browser permissions.');
+        }
+    };
+
     // Reusable Bento box component
     const SoapBox = ({ title, icon, colorClass, placeholder, field }) => (
         <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
@@ -218,6 +259,16 @@ function NoteEditor({ note, onChange, onBack, onSave, onFinalize, onUnlock, onGe
                             </button>
                         ) : (
                             <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleCopyToClipboard}
+                                    className="bg-slate-800 text-white font-bold text-sm px-6 py-3 rounded-xl hover:bg-slate-700 transition-all shadow-sm active:scale-95 flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-sm">
+                                        {isCopied ? 'check' : 'content_copy'}
+                                    </span>
+                                    {isCopied ? 'Copied!' : 'Copy Note'}
+                                </button>
+
                                 <button
                                     onClick={onUnlock}
                                     disabled={isSaving}
@@ -409,7 +460,7 @@ export default function NotesPage() {
             const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/process-transcript', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.access_token}`},
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
                 body: formData,
             });
 
@@ -658,7 +709,7 @@ export default function NotesPage() {
             const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch('http://localhost:8000/api/chart-from-note', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.access_token}`
                 },
