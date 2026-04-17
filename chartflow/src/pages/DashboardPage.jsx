@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
 import supabase from '../lib/supabase';
 
-function DashboardPage({ onPageChange }) {
+function DashboardPage({ onPageChange, isActive }) {
     const [userName, setUserName] = useState('Doctor');
-    const [isLoading, setIsLoading] = useState(true);
+    // Initializes to true ONLY on the very first app load
+    const [isLoading, setIsLoading] = useState(true); 
     const [stats, setStats] = useState({ totalPatients: 0, pendingNotes: 0, pendingCharts: 0 });
     const [recentActivity, setRecentActivity] = useState([]);
 
     useEffect(() => {
+        // If the dashboard is hidden, don't waste network requests
+        if (!isActive) return;
+
         const fetchDashboardData = async () => {
-            setIsLoading(true);
+            // REMOVED: setIsLoading(true); 
+            // By NOT setting this to true here, we achieve a smooth "stale-while-revalidate" 
+            // visual effect. The user sees the old numbers while the new ones load in the background.
+
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -72,12 +79,13 @@ function DashboardPage({ onPageChange }) {
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
             } finally {
+                // This ensures the initial loading screen turns off after the very first fetch
                 setIsLoading(false);
             }
         };
 
         fetchDashboardData();
-    }, []);
+    }, [isActive]);
 
     const formatActivityDate = (timestamp) => {
         if (!timestamp) return '';
@@ -101,7 +109,7 @@ function DashboardPage({ onPageChange }) {
             <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 dark:from-slate-800 dark:to-slate-900 p-8 text-white shadow-lg border dark:border-slate-700 border-transparent">
                 <div className="relative z-10 max-w-2xl">
                     <h2 className="text-3xl font-extrabold font-headline mb-2 tracking-tight">Welcome back, Dr. {userName}.</h2>
-                    <p className="text-blue-100 dark:text-slate-300 text-lg font-medium opacity-90">
+                    <p className="text-blue-100 dark:text-slate-300 text-lg font-medium opacity-90 transition-all">
                         {isLoading ? 'Loading your clinical summary...' : `You have ${stats.pendingNotes} pending notes and ${stats.pendingCharts} charts to finalize.`}
                     </p>
                     <div className="mt-6 flex gap-4">
@@ -125,7 +133,9 @@ function DashboardPage({ onPageChange }) {
                             <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Active Patients</p>
                             <span className="material-symbols-outlined text-slate-400">group</span>
                         </div>
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white font-headline mt-2">{isLoading ? '-' : stats.totalPatients}</h3>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white font-headline mt-2 transition-all">
+                            {isLoading ? '-' : stats.totalPatients}
+                        </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Total recorded patients</p>
                     </div>
                 </div>
@@ -133,14 +143,18 @@ function DashboardPage({ onPageChange }) {
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border-0 border-l-4 border-amber-500 dark:border-amber-600 flex flex-col justify-between relative overflow-hidden group">
                     <div className="relative z-10">
                         <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pending Notes</p>
-                        <h3 className="text-3xl font-black text-amber-600 dark:text-amber-500 font-headline mt-2">{isLoading ? '-' : stats.pendingNotes}</h3>
+                        <h3 className="text-3xl font-black text-amber-600 dark:text-amber-500 font-headline mt-2 transition-all">
+                            {isLoading ? '-' : stats.pendingNotes}
+                        </h3>
                     </div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border-0 border-l-4 border-blue-500 dark:border-blue-600 flex flex-col justify-between relative overflow-hidden group">
                     <div className="relative z-10">
                         <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pending Charts</p>
-                        <h3 className="text-3xl font-black text-blue-600 dark:text-blue-400 font-headline mt-2">{isLoading ? '-' : stats.pendingCharts}</h3>
+                        <h3 className="text-3xl font-black text-blue-600 dark:text-blue-400 font-headline mt-2 transition-all">
+                            {isLoading ? '-' : stats.pendingCharts}
+                        </h3>
                     </div>
                 </div>
 
@@ -178,7 +192,7 @@ function DashboardPage({ onPageChange }) {
                                     <th className="pb-3">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50 transition-all">
                                 {recentActivity.map((item) => (
                                     <tr key={`${item.type}-${item.id}`} className="group hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                                         <td className="py-4">

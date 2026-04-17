@@ -6,7 +6,6 @@ import FileUpload from '../components/file_upload/FileUpload';
 const formatPrettyDate = (dateString) => {
     if (!dateString) return '';
     if (dateString.includes('/')) return dateString;
-    
     const date = new Date(dateString.includes('T') ? dateString : `${dateString}T00:00:00`);
     return date.toLocaleDateString('en-US'); 
 };
@@ -282,7 +281,6 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
     return (
         <div className="space-y-6">
-            {/* Toolbar Bento Box */}
             <article className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                     <div className="flex items-center gap-3">
@@ -330,10 +328,8 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             </article>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Odontogram Canvas */}
                 <article className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-xl p-8 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-x-auto">
-                    {/* Render Odontogram inside a white box to ensure tooth lines stay visible in dark mode */}
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl">
+                    <div className="bg-white p-4 rounded-xl shadow-inner">
                         <Odontogram
                             key={odontoKey}
                             status={toothSelection}
@@ -343,7 +339,6 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                     </div>
                 </article>
 
-                {/* Tooth Detail Panel */}
                 <aside className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 max-h-[600px] overflow-y-auto">
                     {selectedTeeth.length > 0 ? (
                         selectedTeeth.length === 1 ? (
@@ -374,7 +369,6 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                 </aside>
             </div>
 
-            {/* Color Legend */}
             <article className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                 <h3 className="text-xs font-bold font-headline text-slate-400 uppercase tracking-widest mb-4">Color Legend</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -553,7 +547,8 @@ function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRem
     );
 }
 
-function ChartsPage() {
+// Added isActive prop
+export default function ChartsPage({ isActive }) {
     const [currentChart, setCurrentChart] = useState(null);
     const [charts, setCharts] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
@@ -564,7 +559,12 @@ function ChartsPage() {
     const [availableNotes, setAvailableNotes] = useState([]);
     const [noteSearchTerm, setNoteSearchTerm] = useState('');
 
-    useEffect(() => { loadCharts(); }, []);
+    // Fetch when active
+    useEffect(() => { 
+        if (isActive) {
+            loadCharts(); 
+        }
+    }, [isActive]);
 
     const saveStatus = async (chartId, status) => {
         if (isSaving) return;
@@ -956,5 +956,3 @@ function ChartsPage() {
         </div>
     );
 }
-
-export default ChartsPage;
