@@ -5,23 +5,16 @@ import FileUpload from '../components/file_upload/FileUpload';
 
 const formatPrettyDate = (dateString) => {
     if (!dateString) return '';
-    // If it's an old chart that already has the "M/D/YYYY" string, just return it
     if (dateString.includes('/')) return dateString;
     
-    // Convert "YYYY-MM-DD" or ISO strings to a local date object safely
-    // The 'T00:00:00' prevents timezone offset bugs where the day shifts backwards
     const date = new Date(dateString.includes('T') ? dateString : `${dateString}T00:00:00`);
-    return date.toLocaleDateString('en-US'); // Forces M/D/YYYY format
+    return date.toLocaleDateString('en-US'); 
 };
 
 export const universalToFdi = {
-    // Top Right (Universal 1-8 -> FDI 18-11)
     1: 18, 2: 17, 3: 16, 4: 15, 5: 14, 6: 13, 7: 12, 8: 11,
-    // Top Left (Universal 9-16 -> FDI 21-28)
     9: 21, 10: 22, 11: 23, 12: 24, 13: 25, 14: 26, 15: 27, 16: 28,
-    // Bottom Left (Universal 17-24 -> FDI 38-31)
     17: 38, 18: 37, 19: 36, 20: 35, 21: 34, 22: 33, 23: 32, 24: 31,
-    // Bottom Right (Universal 25-32 -> FDI 41-48)
     25: 41, 26: 42, 27: 43, 28: 44, 29: 45, 30: 46, 31: 47, 32: 48
 };
 
@@ -29,7 +22,6 @@ export const fdiToUniversal = Object.fromEntries(
     Object.entries(universalToFdi).map(([universal, fdi]) => [fdi, universal])
 );
 
-// Industry-standard dental color codes
 const DENTAL_COLORS = {
     cavity: { bg: 'bg-red-500', text: 'text-white', border: 'border-red-500', light: 'bg-red-100', lightText: 'text-red-800' },
     filling: { bg: 'bg-blue-500', text: 'text-white', border: 'border-blue-500', light: 'bg-blue-100', lightText: 'text-blue-800' },
@@ -46,11 +38,7 @@ const DENTAL_COLORS = {
 
 const getConditionColors = (condition) => {
     return DENTAL_COLORS[condition] || {
-        bg: 'bg-slate-500',
-        text: 'text-white',
-        border: 'border-slate-500',
-        light: 'bg-slate-100',
-        lightText: 'text-slate-800'
+        bg: 'bg-slate-500', text: 'text-white', border: 'border-slate-500', light: 'bg-slate-100', lightText: 'text-slate-800'
     };
 };
 
@@ -87,17 +75,9 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
     const getConditionHexColor = (condition) => {
         const colorMap = {
-            cavity: '#fecaca',
-            filling: '#bfdbfe',
-            crown: '#fef08a',
-            root_canal: '#fed7aa',
-            missing: '#d1d5db',
-            implant: '#9ca3af',
-            bridge: '#e9d5ff',
-            sealant: '#f3e8ff',
-            watch: '#fef9c3',
-            fracture: '#fca5a5',
-            extraction_planned: '#fee2e2',
+            cavity: '#fecaca', filling: '#bfdbfe', crown: '#fef08a', root_canal: '#fed7aa',
+            missing: '#d1d5db', implant: '#9ca3af', bridge: '#e9d5ff', sealant: '#f3e8ff',
+            watch: '#fef9c3', fracture: '#fca5a5', extraction_planned: '#fee2e2',
         };
         return colorMap[condition] || '#ffffff';
     };
@@ -303,18 +283,18 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
     return (
         <div className="space-y-6">
             {/* Toolbar Bento Box */}
-            <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+            <article className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-primary">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-primary dark:text-blue-400">
                             <span className="material-symbols-outlined">build</span>
                         </div>
-                        <h2 className="text-lg font-bold font-headline">Charting Tools</h2>
+                        <h2 className="text-lg font-bold font-headline text-slate-900 dark:text-white">Charting Tools</h2>
                     </div>
                     {saveStatus && (
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${saveStatus === 'Saved' ? 'bg-green-500' : saveStatus.includes('Error') ? 'bg-red-500' : 'bg-amber-500'}`}></div>
-                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{saveStatus}</span>
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{saveStatus}</span>
                         </div>
                     )}
                 </div>
@@ -328,7 +308,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                                 onClick={() => setActiveCondition(option.value)}
                                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeCondition === option.value
                                     ? `${colors.bg} ${colors.text} shadow-md`
-                                    : `${colors.light} ${colors.lightText} hover:opacity-80`
+                                    : `${colors.light} ${colors.lightText} dark:bg-slate-700 dark:text-slate-300 hover:opacity-80`
                                 }`}
                             >
                                 {option.label}
@@ -338,11 +318,11 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                 </div>
 
                 {selectedTeeth.length > 0 && (
-                    <div className="flex items-center justify-center gap-4 py-3 bg-primary/5 rounded-xl border border-primary/10">
-                        <span className="text-sm font-bold text-primary">
+                    <div className="flex items-center justify-center gap-4 py-3 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/10 dark:border-primary/20">
+                        <span className="text-sm font-bold text-primary dark:text-blue-400">
                             {selectedTeeth.length} {selectedTeeth.length === 1 ? 'tooth' : 'teeth'} selected
                         </span>
-                        <button onClick={handleClearSelection} className="text-xs font-bold text-slate-500 hover:text-primary transition-colors underline underline-offset-2">
+                        <button onClick={handleClearSelection} className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-blue-400 transition-colors underline underline-offset-2">
                             Clear selection
                         </button>
                     </div>
@@ -351,17 +331,20 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Odontogram Canvas */}
-                <article className="lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-slate-100 flex items-center justify-center overflow-x-auto">
-                    <Odontogram
-                        key={odontoKey}
-                        status={toothSelection}
-                        notation="Universal"
-                        onChange={handleToothClick}
-                    />
+                <article className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-xl p-8 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-x-auto">
+                    {/* Render Odontogram inside a white box to ensure tooth lines stay visible in dark mode */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl">
+                        <Odontogram
+                            key={odontoKey}
+                            status={toothSelection}
+                            notation="Universal"
+                            onChange={handleToothClick}
+                        />
+                    </div>
                 </article>
 
                 {/* Tooth Detail Panel */}
-                <aside className="lg:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100 max-h-[600px] overflow-y-auto">
+                <aside className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 max-h-[600px] overflow-y-auto">
                     {selectedTeeth.length > 0 ? (
                         selectedTeeth.length === 1 ? (
                             <ToothDetailPanel
@@ -383,7 +366,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                             />
                         )
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-12 text-center">
                             <span className="material-symbols-outlined text-4xl mb-2 opacity-50">touch_app</span>
                             <p className="text-sm font-medium">Select teeth on the chart to add findings</p>
                         </div>
@@ -392,7 +375,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
             </div>
 
             {/* Color Legend */}
-            <article className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-slate-100">
+            <article className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                 <h3 className="text-xs font-bold font-headline text-slate-400 uppercase tracking-widest mb-4">Color Legend</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {conditionOptions.map(option => {
@@ -400,7 +383,7 @@ function DentalChart({ chartId, onChartSaved, refreshTrigger }) {
                         return (
                             <div key={option.value} className="flex items-center gap-2">
                                 <div className={`w-3 h-3 rounded-full ${colors.bg}`}></div>
-                                <span className="text-xs font-semibold text-slate-700">{option.label}</span>
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{option.label}</span>
                             </div>
                         );
                     })}
@@ -416,39 +399,39 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700">
+            <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-700 pb-4">
+                <div className="w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center text-teal-700 dark:text-teal-400">
                     <span className="material-symbols-outlined">layers</span>
                 </div>
-                <h3 className="text-lg font-bold font-headline">{selectedTeeth.length} Teeth Selected</h3>
+                <h3 className="text-lg font-bold font-headline text-slate-900 dark:text-white">{selectedTeeth.length} Teeth Selected</h3>
             </div>
 
             <div className="flex flex-wrap gap-2">
                 {selectedTeeth.map((tooth) => (
-                    <span key={tooth.id} className="px-2.5 py-1 bg-surface-container text-slate-700 font-bold rounded-lg text-xs">
+                    <span key={tooth.id} className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-lg text-xs">
                         {tooth.id.replace('teeth-', '')}
                     </span>
                 ))}
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Apply to Surface</h4>
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Apply to Surface</h4>
                 <div className="grid grid-cols-2 gap-2">
                     {surfaces.map(surface => (
                         <button
                             key={surface}
                             onClick={() => onSurfaceClick(surface)}
-                            className={`p-3 rounded-xl border-2 text-left hover:ring-2 transition-all ${colors.border} hover:${colors.light}`}
+                            className={`p-3 rounded-xl border-2 text-left hover:ring-2 transition-all dark:border-slate-700 ${colors.border} hover:${colors.light} dark:hover:bg-slate-700`}
                         >
-                            <div className="font-bold text-sm capitalize text-slate-800">{surface}</div>
-                            <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${colors.lightText}`}>Apply {activeCondition}</div>
+                            <div className="font-bold text-sm capitalize text-slate-800 dark:text-white">{surface}</div>
+                            <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${colors.lightText} dark:text-slate-400`}>Apply {activeCondition}</div>
                         </button>
                     ))}
                 </div>
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Whole Tooth</h4>
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Whole Tooth</h4>
                 <button
                     onClick={() => onAddCondition(activeCondition)}
                     className={`w-full px-4 py-3 rounded-xl font-bold transition-transform active:scale-95 ${colors.bg} ${colors.text}`}
@@ -457,20 +440,20 @@ function MultipleTeethPanel({ selectedTeeth, chartData, onSurfaceClick, onAddCon
                 </button>
             </div>
 
-            <div className="pt-4 border-t border-slate-100">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Individual Data</h4>
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Individual Data</h4>
                 <div className="space-y-2">
                     {selectedTeeth.map((tooth) => {
                         const data = chartData[tooth.id];
                         return (
-                            <div key={tooth.id} className="p-3 bg-slate-50 rounded-xl">
-                                <div className="font-bold text-sm text-slate-800 mb-1">Tooth {tooth.id.replace('teeth-', '')}</div>
+                            <div key={tooth.id} className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
+                                <div className="font-bold text-sm text-slate-800 dark:text-white mb-1">Tooth {tooth.id.replace('teeth-', '')}</div>
                                 {data?.conditions && data.conditions.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
                                         {data.conditions.map((condition, idx) => {
                                             const condColors = getConditionColors(condition);
                                             return (
-                                                <span key={idx} className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${condColors.light} ${condColors.lightText}`}>
+                                                <span key={idx} className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${condColors.light} ${condColors.lightText} dark:bg-slate-800 dark:text-slate-300`}>
                                                     {condition}
                                                 </span>
                                             );
@@ -492,35 +475,35 @@ function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRem
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700">
+            <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-700 pb-4">
+                <div className="w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center text-teal-700 dark:text-teal-400">
                     <span className="material-symbols-outlined">dentistry</span>
                 </div>
                 <div>
-                    <h3 className="text-lg font-bold font-headline leading-tight">Tooth {toothId.replace('teeth-', '')}</h3>
-                    <p className="text-xs text-slate-500 font-label">Detailed charting</p>
+                    <h3 className="text-lg font-bold font-headline leading-tight text-slate-900 dark:text-white">Tooth {toothId.replace('teeth-', '')}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-label">Detailed charting</p>
                 </div>
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Surfaces</h4>
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Surfaces</h4>
                 <div className="grid grid-cols-2 gap-2">
                     {surfaces.map(surface => {
                         const surfaceData = data?.surfaces?.[surface];
                         const surfaceColors = surfaceData?.condition
                             ? getConditionColors(surfaceData.condition)
-                            : { border: 'border-slate-200', light: 'bg-surface-container-low', lightText: 'text-slate-400' };
+                            : { border: 'border-slate-200 dark:border-slate-700', light: 'bg-slate-50 dark:bg-slate-900', lightText: 'text-slate-400 dark:text-slate-500' };
 
                         return (
                             <button
                                 key={surface}
                                 onClick={() => onSurfaceClick(surface)}
                                 className={`p-3 rounded-xl border-2 text-left transition-all ${surfaceData?.condition
-                                    ? `${surfaceColors.light} ${surfaceColors.border} ring-1 ring-offset-1 ring-${surfaceColors.border}`
-                                    : `border-slate-200 hover:${colors.light} hover:${colors.border}`
+                                    ? `${surfaceColors.light} ${surfaceColors.border} ring-1 ring-offset-1 ring-${surfaceColors.border} dark:bg-slate-800`
+                                    : `border-slate-200 dark:border-slate-700 hover:${colors.light} hover:${colors.border} dark:hover:bg-slate-800`
                                     }`}
                             >
-                                <div className="font-bold text-sm capitalize text-slate-800">{surface}</div>
+                                <div className="font-bold text-sm capitalize text-slate-800 dark:text-white">{surface}</div>
                                 <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${surfaceColors.lightText}`}>
                                     {surfaceData?.condition || 'Clear'}
                                 </div>
@@ -531,7 +514,7 @@ function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRem
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Conditions</h4>
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Conditions</h4>
                 <button
                     onClick={() => onAddCondition(activeCondition)}
                     className={`w-full mb-3 px-4 py-3 rounded-xl font-bold transition-transform active:scale-95 ${colors.bg} ${colors.text}`}
@@ -544,7 +527,7 @@ function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRem
                         {data.conditions.map((condition, idx) => {
                             const condColors = getConditionColors(condition);
                             return (
-                                <span key={idx} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 ${condColors.light} ${condColors.lightText}`}>
+                                <span key={idx} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 ${condColors.light} ${condColors.lightText} dark:bg-slate-800 dark:text-slate-300`}>
                                     {condition}
                                     <button onClick={() => onRemoveCondition(toothId, condition)} className="hover:opacity-70 flex items-center">
                                         <span className="material-symbols-outlined text-sm">close</span>
@@ -557,9 +540,9 @@ function ToothDetailPanel({ toothId, data, onSurfaceClick, onAddCondition, onRem
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Clinical Notes</h4>
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Clinical Notes</h4>
                 <textarea
-                    className="w-full bg-surface-container-highest border-none rounded-xl focus:ring-1 focus:ring-primary/40 transition-all text-sm py-3 px-4 resize-none"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:ring-1 focus:ring-primary/40 transition-all text-sm py-3 px-4 resize-none placeholder-slate-400 dark:placeholder-slate-500"
                     rows="3"
                     placeholder="Specific remarks for this tooth..."
                     value={data?.notes || ''}
@@ -574,7 +557,7 @@ function ChartsPage() {
     const [currentChart, setCurrentChart] = useState(null);
     const [charts, setCharts] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
-    const [searchQuery, setSearchQuery] = useState(''); // REPLACED patientName
+    const [searchQuery, setSearchQuery] = useState(''); 
     const [isSaving, setIsSaving] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -625,13 +608,12 @@ function ChartsPage() {
             const today = new Date();
             const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-            // Instantly create a blank chart so the user can name it in the editor
             const { data, error } = await supabase
                 .from('charts')
                 .insert([{
                     user_id: user.id,
                     date: dateString,
-                    patient_name: '', // Blank by default!
+                    patient_name: '', 
                     status: 'In Progress'
                 }])
                 .select()
@@ -640,7 +622,7 @@ function ChartsPage() {
             if (error) throw error;
 
             setCharts(prev => [data, ...prev]);
-            setCurrentChart(data); // Open Editor instantly
+            setCurrentChart(data); 
         } catch (error) {
             console.error('Error creating chart:', error);
         } finally {
@@ -660,7 +642,6 @@ function ChartsPage() {
         }
     };
 
-    // Auto-save the patient name from the editor view
     useEffect(() => {
         if (!currentChart) return;
         const debounceTimer = setTimeout(async () => {
@@ -767,18 +748,17 @@ function ChartsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-surface text-on-surface font-body relative">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-body relative transition-colors duration-200">
             
-            {/* Top AppBar Shell */}
-            <header className="sticky top-0 z-40 flex justify-between items-center px-8 py-4 w-full bg-slate-50/85 backdrop-blur-md border-b border-slate-200/50">
+            <header className="sticky top-0 z-40 flex justify-between items-center px-8 py-4 w-full bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800">
                 <div className="flex items-center gap-6">
-                    <h2 className="text-lg font-bold tracking-tight text-primary font-headline">Clinical Charts</h2>
+                    <h2 className="text-lg font-bold tracking-tight text-primary dark:text-blue-400 font-headline">Clinical Charts</h2>
                     {currentChart?.patient_name && (
                         <>
-                            <div className="h-6 w-px bg-slate-200"></div>
-                            <div className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+                            <div className="text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
                                 <span className="material-symbols-outlined text-[18px]">person</span>
-                                Context: <span className="text-slate-800 font-semibold">{currentChart.patient_name}</span>
+                                Context: <span className="text-slate-800 dark:text-white font-semibold">{currentChart.patient_name}</span>
                             </div>
                         </>
                     )}
@@ -787,23 +767,22 @@ function ChartsPage() {
 
             <div className="p-8 max-w-7xl mx-auto">
                 {!currentChart ? (
-                    // --- LIST / DASHBOARD VIEW ---
                     <div className="grid grid-cols-12 gap-6">
-                        <section className="col-span-12 bg-surface-container-lowest rounded-xl p-1 shadow-sm border border-slate-100">
-                            <div className="px-6 py-5 flex justify-between items-center">
-                                <h3 className="text-base font-bold font-headline text-slate-900 tracking-tight">Active Dental Charts</h3>
+                        <section className="col-span-12 bg-white dark:bg-slate-800 rounded-xl p-1 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="px-6 py-5 flex justify-between items-center border-b border-slate-100 dark:border-slate-700">
+                                <h3 className="text-base font-bold font-headline text-slate-900 dark:text-white tracking-tight">Active Dental Charts</h3>
                                 <div className="flex gap-3">
                                     <input
                                         type="text"
                                         placeholder="Search patients..."
-                                        className="text-sm px-3 py-2 bg-surface-container-low border-none rounded-lg focus:ring-1 focus:ring-primary w-64"
+                                        className="text-sm px-3 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white border-none rounded-lg focus:ring-1 focus:ring-primary w-64 placeholder-slate-400 dark:placeholder-slate-500"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                     <button
                                         onClick={createChartFromNote}
                                         disabled={isCreating}
-                                        className="px-4 py-2 text-xs font-bold text-primary bg-primary-container/20 rounded-lg hover:bg-primary-container/30 transition-colors flex items-center gap-2"
+                                        className="px-4 py-2 text-xs font-bold text-primary dark:text-blue-400 bg-primary/10 dark:bg-primary/20 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors flex items-center gap-2"
                                     >
                                         <span className="material-symbols-outlined text-sm">auto_awesome</span>
                                         AI Generate
@@ -811,7 +790,7 @@ function ChartsPage() {
                                     <button
                                         onClick={createNewChart}
                                         disabled={isCreating}
-                                        className="px-4 py-2 text-xs font-bold text-white bg-primary rounded-lg hover:bg-primary-container transition-colors shadow-md shadow-primary/20 flex items-center gap-2"
+                                        className="px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-blue-700 rounded-lg transition-colors shadow-md shadow-primary/20 flex items-center gap-2"
                                     >
                                         <span className="material-symbols-outlined text-sm">add</span>
                                         New Chart
@@ -822,33 +801,33 @@ function ChartsPage() {
                             <div className="w-full overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="bg-surface-container-low/50">
-                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
-                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Patient</th>
-                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                                        <tr className="bg-slate-50/50 dark:bg-slate-800/50">
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Date</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Patient</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="px-6 py-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                         {charts.filter(chart => {
                                             const term = searchQuery.trim().toLowerCase();
                                             if (!term) return true;
                                             return (chart.patient_name || '').toLowerCase().includes(term);
                                         }).map(chart => (
-                                            <tr key={chart.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setCurrentChart(chart)}>
+                                            <tr key={chart.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer" onClick={() => setCurrentChart(chart)}>
                                                 <td className="px-6 py-4">
-                                                    <div className="text-sm font-semibold text-slate-900">{formatPrettyDate(chart.date)}</div>
+                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white">{formatPrettyDate(chart.date)}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="text-sm font-semibold text-slate-800">{chart.patient_name || 'Unnamed Chart'}</div>
+                                                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{chart.patient_name || 'Unnamed Chart'}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${chart.status === 'In Progress' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${chart.status === 'In Progress' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}>
                                                         {chart.status || 'Draft'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button onClick={(e) => { e.stopPropagation(); deleteChart(chart.id); }} className="text-slate-400 hover:text-error transition-colors p-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); deleteChart(chart.id); }} className="text-slate-400 dark:text-slate-500 hover:text-error dark:hover:text-red-400 transition-colors p-2">
                                                         <span className="material-symbols-outlined text-lg">delete</span>
                                                     </button>
                                                 </td>
@@ -860,43 +839,41 @@ function ChartsPage() {
                         </section>
                     </div>
                 ) : (
-                    // --- EDITOR VIEW ---
                     <div className="space-y-6 pb-24">
                         <section className="flex justify-between items-center mb-8">
                             <div>
-                                <button onClick={() => setCurrentChart(null)} className="flex items-center gap-2 text-slate-500 hover:text-primary text-sm font-bold mb-4 transition-colors">
+                                <button onClick={() => setCurrentChart(null)} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-blue-400 text-sm font-bold mb-4 transition-colors">
                                     <span className="material-symbols-outlined text-sm">arrow_back</span> Back to Charts
                                 </button>
                                 <input
                                     type="text"
-                                    className="text-3xl font-extrabold tracking-tight text-on-surface bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 w-full"
+                                    className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 dark:placeholder-slate-600 w-full"
                                     placeholder="Patient Name"
                                     value={currentChart.patient_name || ''}
                                     onChange={(e) => setCurrentChart({...currentChart, patient_name: e.target.value})}
                                 />
-                                <div className="mt-2 text-on-surface-variant flex items-center gap-2">
+                                <div className="mt-2 text-slate-500 dark:text-slate-400 flex items-center gap-2">
                                     <span className="material-symbols-outlined text-sm">calendar_today</span>
-                                    <span className="text-sm font-medium">{formatPrettyDate(currentChart.date)}</span>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{formatPrettyDate(currentChart.date)}</span>
                                 </div>
                             </div>
                             <div>
                                 <button
                                     onClick={() => handleStatusChange(currentChart.id, currentChart.status)}
-                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${currentChart.status === 'In Progress' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}
+                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${currentChart.status === 'In Progress' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60' : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'}`}
                                 >
                                     Mark as {currentChart.status === 'In Progress' ? 'Completed' : 'In Progress'}
                                 </button>
                             </div>
                         </section>
 
-                        {/* AI Import Block */}
-                        <article className="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-slate-100 flex items-center justify-between">
+                        <article className="bg-white dark:bg-slate-800 rounded-xl p-8 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-bold font-headline flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-primary">document_scanner</span>
+                                <h3 className="text-lg font-bold font-headline flex items-center gap-2 text-slate-900 dark:text-white">
+                                    <span className="material-symbols-outlined text-primary dark:text-blue-400">document_scanner</span>
                                     AI Legacy Chart Import
                                 </h3>
-                                <p className="text-sm text-slate-500 mt-1">Upload a PDF or image of an old chart to automatically map findings.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Upload a PDF or image of an old chart to automatically map findings.</p>
                             </div>
                             <div className="w-96">
                                 <FileUpload elementId={currentChart.id} onUploadComplete={handleUploadComplete} />
@@ -913,19 +890,18 @@ function ChartsPage() {
                 )}
             </div>
 
-            {/* Note Selection Modal */}
             {isNoteModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden border border-slate-200/50">
-                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden border border-slate-200/50 dark:border-slate-700">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold font-headline text-slate-900">Generate Chart from Note</h2>
-                                <button onClick={() => { setIsNoteModalOpen(false); setNoteSearchTerm(''); }} className="text-slate-400 hover:text-slate-700 transition-colors">
+                                <h2 className="text-xl font-bold font-headline text-slate-900 dark:text-white">Generate Chart from Note</h2>
+                                <button onClick={() => { setIsNoteModalOpen(false); setNoteSearchTerm(''); }} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
                             </div>
                             <div className="relative">
-                                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
+                                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 dark:text-slate-500">
                                     <span className="material-symbols-outlined text-lg">search</span>
                                 </span>
                                 <input
@@ -933,39 +909,39 @@ function ChartsPage() {
                                     placeholder="Search finalized notes..."
                                     value={noteSearchTerm}
                                     onChange={(e) => setNoteSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 border-none bg-white rounded-xl shadow-sm focus:ring-2 focus:ring-primary text-sm"
+                                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-xl shadow-sm focus:ring-2 focus:ring-primary text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                                 />
                             </div>
                         </div>
 
-                        <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
+                        <div className="p-6 overflow-y-auto flex-1 bg-white dark:bg-slate-800">
                             {availableNotes.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-3">edit_document</span>
-                                    <p className="text-sm font-medium text-slate-500">No finalized notes available.</p>
-                                    <p className="text-xs text-slate-400">Finalize a SOAP note first to generate a chart from it.</p>
+                                    <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-3">edit_document</span>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No finalized notes available.</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500">Finalize a SOAP note first to generate a chart from it.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
                                     {availableNotes
                                         .filter(note => (note.patient_name || '').toLowerCase().includes(noteSearchTerm.toLowerCase()))
                                         .map(note => (
-                                            <div key={note.id} className="border border-slate-100 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:border-primary/30 hover:bg-primary/5 transition-all group">
+                                            <div key={note.id} className="border border-slate-100 dark:border-slate-700 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:border-primary/30 dark:hover:border-blue-500/50 hover:bg-primary/5 dark:hover:bg-blue-500/10 transition-all group">
                                                 <div className="mb-4 sm:mb-0">
                                                     <div className="flex items-center gap-3 mb-1">
-                                                        <span className="font-bold text-lg text-slate-900 font-headline">{note.patient_name || 'Unknown Patient'}</span>
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 uppercase tracking-widest">
+                                                        <span className="font-bold text-lg text-slate-900 dark:text-white font-headline">{note.patient_name || 'Unknown Patient'}</span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 uppercase tracking-widest">
                                                             {formatPrettyDate(note.date)}
                                                         </span>
                                                     </div>
-                                                    <div className="text-sm text-slate-600 line-clamp-1 max-w-xl">
-                                                        <span className="font-bold text-slate-800">CC:</span> {note.chief_complaint || 'No chief complaint recorded'}
+                                                    <div className="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 max-w-xl">
+                                                        <span className="font-bold text-slate-800 dark:text-slate-200">CC:</span> {note.chief_complaint || 'No chief complaint recorded'}
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleSelectNoteForChart(note)}
                                                     disabled={isCreating}
-                                                    className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-container font-bold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 w-full sm:w-auto shrink-0"
+                                                    className="px-6 py-2.5 bg-primary hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 w-full sm:w-auto shrink-0"
                                                 >
                                                     {isCreating ? 'Mapping...' : 'Generate AI Chart'}
                                                 </button>

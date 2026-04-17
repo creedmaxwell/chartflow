@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================
+   LIGHT MODE (Default)
+========================================= */
 .Odontogram path[fill="currentColor"] {
   fill: white;
   transition: fill 0.3s ease;
@@ -10,19 +13,42 @@
 .Odontogram path[stroke="currentColor"] {
   stroke: #5e7dfc8f;
   transition: stroke 0.3s ease;
-}
-
-/* Selected teeth styling */
-.Odontogram g[role="option"]:hover path[stroke="currentColor"] {
-  stroke: black;
-  /*stroke-width: 2pt;*/
-}
-
-.Odontogram .selected path[stroke="currentColor"] {
-  stroke: black;
-}
-
-/* Detail paths (the inner lines on teeth) */
-.Odontogram path[stroke="currentColor"] {
   fill: none;
+}
+
+/* Hover state */
+.Odontogram g[role="option"]:hover path[stroke="currentColor"] {
+  stroke: #0f172a; /* Slate 900 */
+}
+
+/* Selected state */
+.Odontogram .selected path[stroke="currentColor"] {
+  stroke: #0f172a;
+  stroke-width: 1.5pt;
+}
+
+
+/* =========================================
+   DARK MODE
+========================================= */
+
+/* Soften the tooth fill slightly to prevent blinding contrast on dark screens */
+.dark .Odontogram path[fill="currentColor"] {
+  fill: #e2e8f0; /* Slate 200 */
+}
+
+/* Lighter default outlines to show up against dark backgrounds */
+.dark .Odontogram path[stroke="currentColor"] {
+  stroke: #64748b; /* Slate 500 */
+}
+
+/* High-visibility bright blue highlight on hover */
+.dark .Odontogram g[role="option"]:hover path[stroke="currentColor"] {
+  stroke: #38bdf8; /* Sky 400 */
+}
+
+/* Bold, glowing blue for selected teeth */
+.dark .Odontogram .selected path[stroke="currentColor"] {
+  stroke: #3b82f6; /* Blue 500 */
+  stroke-width: 1.5pt;
 }
