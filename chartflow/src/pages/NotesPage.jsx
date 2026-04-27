@@ -376,11 +376,7 @@ export default function NotesPage() {
 
     const handleStatusChange = async (noteId, status) => {
         if (isSaving) return;
-        if (status === 'draft') {
-            saveStatus(noteId, 'finalized');
-        } else {
-            saveStatus(noteId, 'draft');
-        }
+        saveStatus(noteId, status);
     };
 
     const handleSetCurrentNote = (note) => {
