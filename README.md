@@ -2,6 +2,8 @@
 
 An intelligent dental charting application that leverages AI to streamline clinical workflows, manage patient records, and generate comprehensive clinical notes.
 
+<img width="1000" height="455" alt="image" src="https://github.com/user-attachments/assets/28ca60e3-237a-4a2e-b98a-9610ce4c9ab9" />
+
 ## Overview
 
 ChartFlow is a full-stack application designed for dental professionals to efficiently manage patient charts, convert audio recordings into clinical notes, and analyze dental examination data using AI-powered tools. The platform combines a modern React frontend with a Python FastAPI backend powered by Google Gemini LLM.
